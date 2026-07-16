@@ -19,11 +19,7 @@ export const links: Route.LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-<<<<<<< HEAD
-    href: "https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lora:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap",
-=======
     href: "https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap",
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
   },
   {
     rel: "stylesheet",
@@ -33,11 +29,7 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-<<<<<<< HEAD
-    <html lang="vi">
-=======
     <html lang="en">
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
