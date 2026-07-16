@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { Sidebar } from "../../components/student/Sidebar";
 import { QuickSupportGrid } from "../../components/student/QuickSupportCard";
 import { FeaturedExperts } from "../../components/student/ExpertCard";
@@ -26,56 +27,82 @@ export default function StudentDashboard() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Top Header Row */}
-        <header className="flex items-center justify-between px-6 py-5 bg-surface-container-lowest border-b border-outline-variant/20 sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            {/* Mobile Menu Burger Toggle */}
+        <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-outline-variant/20 sticky top-0 z-30">
+          {/* Left: burger + logo + tabs */}
+          <div className="flex items-center gap-4">
+            {/* Mobile hamburger */}
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="p-1.5 text-on-surface hover:bg-surface-container rounded-lg lg:hidden"
+              className="p-1.5 text-on-surface hover:bg-surface-container rounded-lg lg:hidden cursor-pointer"
               aria-label="Mở menu"
             >
               <Icon name="menu" size={24} />
             </button>
-            <div className="hidden sm:block">
-              <h2 className="text-xl md:text-[22px] font-serif font-bold text-on-surface leading-snug tracking-tight">
-                Chào buổi sáng, Nam 👋
-              </h2>
-              <p className="text-[11px] md:text-xs text-on-surface-variant font-normal mt-1 tracking-wide">
-                Hôm nay bạn cảm thấy thế nào?
-              </p>
-            </div>
-          </div>
 
-          {/* Welcome Info for small mobile screens (displayed in header when title is too big) */}
-          <div className="block sm:hidden flex-grow px-2">
-            <h2 className="text-base font-serif font-bold text-on-surface leading-snug tracking-tight">
-              Chào, Nam 👋
-            </h2>
+            {/* Logo */}
+            <Link
+              to="/student/dashboard"
+              className="flex items-center gap-2 text-primary font-serif font-extrabold text-[17px] tracking-tight select-none"
+            >
+              <Icon name="shield" filled size={22} />
+              An Toàn Trường Học
+            </Link>
+
+            {/* Tab nav (hidden on mobile) */}
+            <nav className="hidden md:flex items-center gap-1 ml-6" aria-label="Dashboard navigation">
+              {/* Active Tab: Trang chủ */}
+              <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-on-primary shadow-sm">
+                <Icon name="home" size={18} filled />
+                Trang chủ
+              </span>
+              {[
+                { label: "Báo cáo", to: "/student/reports", icon: "add_circle" },
+                { label: "Hồ sơ", to: "/student/profile", icon: "history" },
+              ].map((tab) => (
+                <Link
+                  key={tab.label}
+                  to={tab.to}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+                >
+                  <Icon name={tab.icon} size={18} />
+                  {tab.label}
+                </Link>
+              ))}
+              {/* Hỗ trợ tab */}
+              <Link
+                to="/student/support"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              >
+                <Icon name="emergency" size={18} />
+                Hỗ trợ
+              </Link>
+            </nav>
           </div>
 
           {/* Action Icons & Profile */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* Notification Bell */}
             <button
               className="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-colors cursor-pointer"
               aria-label="Thông báo"
             >
-              <Icon name="notifications" size={24} />
+              <Icon name="notifications" size={22} />
               {/* Active Dot */}
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error animate-pulse" />
             </button>
 
-            {/* Help Support */}
-            <button
+            {/* Help Support → navigate to support page */}
+            <Link
+              to="/student/support"
               className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-colors cursor-pointer"
-              aria-label="Hỏi đáp / Trợ giúp"
+              aria-label="Hỗ trợ khẩn cấp"
             >
-              <Icon name="help" size={24} />
-            </button>
+              <Icon name="help" size={22} />
+            </Link>
 
             {/* Profile Picture */}
             <button
-              className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30 hover:opacity-95 transition-opacity focus:outline-none cursor-pointer"
+              className="w-9 h-9 rounded-full overflow-hidden border border-outline-variant/30 hover:opacity-95 transition-opacity focus:outline-none cursor-pointer flex-shrink-0"
               aria-label="Hồ sơ cá nhân"
             >
               <img
@@ -89,9 +116,12 @@ export default function StudentDashboard() {
 
         {/* Scrollable Dashboard Body */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 max-w-[1100px] w-full mx-auto animate-fade-in">
-          {/* Welcome subtitle for mobile display */}
-          <div className="sm:hidden -mt-2 -mb-2">
-            <p className="text-xs text-on-surface-variant font-normal tracking-wide">
+          {/* Welcome greeting (mobile only fallback, now shown below header on mobile) */}
+          <div className="-mt-2 -mb-2">
+            <h2 className="text-xl md:text-[22px] font-serif font-bold text-on-surface leading-snug tracking-tight">
+              Chào buổi sáng, Nam 👋
+            </h2>
+            <p className="text-xs text-on-surface-variant font-normal mt-1 tracking-wide">
               Hôm nay bạn cảm thấy thế nào?
             </p>
           </div>

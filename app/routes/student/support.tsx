@@ -155,7 +155,7 @@ export default function StudentSupportPage() {
                   <h1 className="text-2xl md:text-3xl font-serif font-extrabold text-[#7b0000] leading-snug mb-3">
                     Bạn đang cần trợ giúp khẩn cấp?
                   </h1>
-                  <p className="text-sm md:text-base text-[#ba1a1a]/80 font-medium leading-relaxed max-w-sm mx-auto">
+                  <p className="text-sm md:text-base text-[#ba1a1a]/80 font-medium leading-relaxed mx-auto">
                     Chúng tôi ở đây để giúp bạn. Đừng ngần ngại liên hệ nếu bạn cảm thấy không an toàn.
                   </p>
                 </div>
