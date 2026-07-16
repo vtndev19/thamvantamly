@@ -37,10 +37,10 @@ export default function StudentDashboard() {
               <Icon name="menu" size={24} />
             </button>
             <div className="hidden sm:block">
-              <h2 className="text-xl md:text-2xl font-serif font-bold text-on-surface leading-tight">
+              <h2 className="text-xl md:text-[22px] font-serif font-bold text-on-surface leading-snug tracking-tight">
                 Chào buổi sáng, Nam 👋
               </h2>
-              <p className="text-xs md:text-sm text-on-surface-variant font-medium mt-0.5">
+              <p className="text-[11px] md:text-xs text-on-surface-variant font-normal mt-1 tracking-wide">
                 Hôm nay bạn cảm thấy thế nào?
               </p>
             </div>
@@ -48,7 +48,7 @@ export default function StudentDashboard() {
 
           {/* Welcome Info for small mobile screens (displayed in header when title is too big) */}
           <div className="block sm:hidden flex-grow px-2">
-            <h2 className="text-lg font-serif font-bold text-on-surface leading-tight">
+            <h2 className="text-base font-serif font-bold text-on-surface leading-snug tracking-tight">
               Chào, Nam 👋
             </h2>
           </div>
@@ -91,7 +91,7 @@ export default function StudentDashboard() {
         <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 max-w-[1100px] w-full mx-auto animate-fade-in">
           {/* Welcome subtitle for mobile display */}
           <div className="sm:hidden -mt-2 -mb-2">
-            <p className="text-sm text-on-surface-variant font-medium">
+            <p className="text-xs text-on-surface-variant font-normal tracking-wide">
               Hôm nay bạn cảm thấy thế nào?
             </p>
           </div>
@@ -99,18 +99,18 @@ export default function StudentDashboard() {
           {/* Banner Card: "Bạn không cần phải đối mặt một mình" */}
           <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#ebf3fe] via-[#f1f6ff] to-[#e4efff] border border-[#d3e5fe] px-8 py-10 md:py-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-xs animate-scale-in">
             {/* Left Content */}
-            <div className="flex flex-col items-start text-left max-w-xl relative z-10 flex-1">
-              <span className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#0058bd]/8 text-[#0058bd] tracking-wide mb-4 inline-block">
+            <div className="flex flex-col items-start text-left w-full relative z-10 flex-1 min-w-0">
+              <span className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#0058bd]/8 text-[#0058bd] tracking-wide mb-4 inline-block whitespace-nowrap">
                 Trạm dừng tĩnh lặng
               </span>
               <h3 className="text-2xl md:text-3xl font-serif font-extrabold text-[#001a41] leading-snug tracking-tight mb-3">
                 Bạn không cần phải đối mặt một mình
               </h3>
-              <p className="text-sm md:text-base text-on-primary-fixed-variant leading-relaxed mb-6 font-medium max-w-lg">
+              <p className="text-sm md:text-base text-on-primary-fixed-variant leading-relaxed mb-6 font-medium">
                 Chúng tôi ở đây để lắng nghe, thấu hiểu và đồng hành cùng bạn
                 vượt qua những khúc mắc trong cuộc sống học đường.
               </p>
-              <button className="bg-primary hover:bg-primary-container text-on-primary text-sm font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-sm cursor-pointer">
+              <button className="bg-primary hover:bg-primary-container text-on-primary text-sm font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-sm cursor-pointer whitespace-nowrap">
                 Bắt đầu chia sẻ
               </button>
             </div>

@@ -9,10 +9,12 @@ interface ExpertProps {
 }
 
 export function ExpertCard({ id, name, title, avatar, tags }: ExpertProps) {
+  const displayName = title === "Chuyên viên" ? `Chuyên viên ${name}` : `${title}. ${name}`;
+
   return (
-    <div className="flex flex-col items-center p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 text-center hover:shadow-md transition-all duration-300 w-full">
+    <div className="flex flex-col items-center p-6 rounded-2xl bg-white border border-[#e8eaf0] text-center hover:shadow-md transition-all duration-300 w-full">
       {/* Avatar Container */}
-      <div className="w-[100px] h-[100px] rounded-full overflow-hidden mb-4 border-2 border-outline-variant/20 shadow-xs">
+      <div className="w-[90px] h-[90px] rounded-full overflow-hidden mb-4 border border-[#e8eaf0] shadow-xs">
         <img
           src={avatar}
           alt={`Chuyên gia ${name}`}
@@ -21,16 +23,16 @@ export function ExpertCard({ id, name, title, avatar, tags }: ExpertProps) {
       </div>
 
       {/* Name and Title */}
-      <h4 className="font-serif font-bold text-on-surface text-base mb-1 truncate max-w-full">
-        {title}. {name}
+      <h4 className="font-serif font-bold text-[#191c1e] text-base mb-1 truncate max-w-full">
+        {displayName}
       </h4>
 
       {/* Tags / Specializations */}
-      <div className="flex flex-wrap gap-1.5 justify-center my-3.5 min-h-[26px]">
+      <div className="flex flex-wrap gap-2 justify-center my-3 min-h-[26px]">
         {tags.map((tag) => (
           <span
             key={tag}
-            className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-surface-container text-on-surface-variant"
+            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-[#f8f9fa] border border-[#e8eaf0] text-[#727785]"
           >
             {tag}
           </span>
@@ -40,7 +42,7 @@ export function ExpertCard({ id, name, title, avatar, tags }: ExpertProps) {
       {/* View Profile Button */}
       <Link
         to={`/student/experts/${id}`}
-        className="mt-2 w-full max-w-[180px] border border-outline-variant/50 hover:bg-primary hover:text-on-primary hover:border-primary text-on-surface text-xs font-semibold py-2 px-4 rounded-xl transition-all duration-250 block text-center"
+        className="mt-2 w-full max-w-[180px] border border-[#c1c6d6] hover:border-[#0058bd] hover:text-[#0058bd] text-[#414754] text-xs font-semibold py-2 px-4 rounded-lg bg-white transition-all duration-200 block text-center"
       >
         Xem hồ sơ
       </Link>
@@ -77,12 +79,12 @@ export function FeaturedExperts() {
     <div className="flex flex-col gap-5 w-full">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-xl md:text-2xl font-serif font-bold text-on-surface tracking-wide">
+        <h3 className="text-2xl md:text-3xl font-serif font-bold text-[#191c1e]">
           Chuyên viên tiêu biểu
         </h3>
         <Link
           to="/student/experts"
-          className="text-sm font-semibold text-primary hover:text-primary-container transition-colors"
+          className="text-sm font-semibold text-[#0058bd] hover:text-[#004494] transition-colors"
         >
           Xem tất cả
         </Link>

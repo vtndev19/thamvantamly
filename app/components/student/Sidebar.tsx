@@ -31,7 +31,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col justify-between border-r border-outline-variant/30 bg-surface-container-lowest px-6 py-8 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-6 py-8 transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -39,17 +39,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="flex flex-col gap-8">
           {/* Brand Logo */}
           <div className="flex items-center gap-3 relative">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-sm">
-              <Icon name="shield_lock" filled size={24} />
+            <div className="text-primary flex items-center justify-center flex-shrink-0">
+              <Icon name="shield" filled size={38} />
             </div>
             <div>
-              <h1 className="font-bold text-lg text-primary tracking-wide leading-tight">
+              <h1 className="font-serif font-bold text-xl text-[#003884] tracking-tight leading-tight">
                 SafeSchool
               </h1>
-              <h1 className="font-bold text-lg text-primary tracking-wide leading-none">
+              <h1 className="font-serif font-bold text-xl text-[#003884] tracking-tight leading-none">
                 Hub
               </h1>
-              <p className="text-[10px] text-outline-variant/80 font-medium mt-0.5">
+              <p className="text-[10px] text-[#727785] font-medium mt-1">
                 Cổng hỗ trợ tâm lý
               </p>
             </div>
@@ -76,9 +76,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     // Close sidebar on mobile after clicking
                     onClose();
                   }}
-                  className={`flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  className={`flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                     isActive
-                      ? "bg-primary text-on-primary shadow-sm"
+                      ? "bg-primary text-on-primary shadow-md"
                       : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                   }`}
                 >
@@ -101,7 +101,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <Link
             to="/student/appointments/new"
             onClick={onClose}
-            className="flex items-center justify-center w-full bg-primary hover:bg-primary-container text-on-primary text-sm font-bold py-3.5 rounded-xl transition-all duration-200 shadow-xs"
+            className="flex items-center justify-center w-full bg-primary hover:bg-primary-container text-on-primary text-sm font-bold py-3.5 rounded-xl transition-all duration-200 shadow-sm"
           >
             Đặt lịch ngay
           </Link>
@@ -122,7 +122,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
             <Link
               to="/auth/login"
-              className="flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-error hover:bg-error-container/20 transition-all duration-200"
+              className="flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all duration-200"
             >
               <Icon name="logout" size={20} style={{ color: "currentColor" }} />
               Đăng xuất

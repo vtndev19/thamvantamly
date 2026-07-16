@@ -5,9 +5,17 @@ interface CardProps {
   description?: string;
   icon: string;
   themeColor: "blue" | "orange" | "green" | "red" | "gray";
-  layout?: "vertical" | "horizontal" | "square";
+  layout?: "vertical" | "square" | "horizontal";
   onClick?: () => void;
 }
+
+const COLOR_MAP = {
+  blue:   { bg: "bg-[#0058bd]", text: "text-white" },
+  orange: { bg: "bg-[#fff2e8]", text: "text-[#994100]" },
+  green:  { bg: "bg-[#e6f7ed]", text: "text-[#006d36]" },
+  red:    { bg: "bg-[#ffeef0]", text: "text-[#ba1a1a]" },
+  gray:   { bg: "bg-[#f2f4f6]", text: "text-[#414754]" },
+} as const;
 
 export function QuickSupportCard({
   title,
@@ -17,87 +25,67 @@ export function QuickSupportCard({
   layout = "vertical",
   onClick,
 }: CardProps) {
-  // Theme color styling mapper
-  const colorStyles = {
-    blue: {
-      bg: "bg-[#e8f1fc]",
-      text: "text-[#0058bd]",
-    },
-    orange: {
-      bg: "bg-[#fff2e8]",
-      text: "text-[#994100]",
-    },
-    green: {
-      bg: "bg-[#e6f7ed]",
-      text: "text-[#006d36]",
-    },
-    red: {
-      bg: "bg-[#ffeef0]",
-      text: "text-[#ba1a1a]",
-    },
-    gray: {
-      bg: "bg-[#f2f4f6]",
-      text: "text-[#414754]",
-    },
-  }[themeColor];
+  const color = COLOR_MAP[themeColor];
 
+  /* ── Square layout (Đánh giá cảm xúc) ── */
   if (layout === "square") {
     return (
       <button
         onClick={onClick}
-        className="flex flex-col justify-between items-start p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 text-left hover:shadow-md transition-all duration-300 w-full min-h-[170px]"
+        className="flex flex-col justify-between items-start p-6 rounded-2xl bg-white border border-[#e8eaf0] text-left hover:shadow-md transition-all duration-300 w-full min-h-[160px] cursor-pointer"
       >
-        <div className={`w-10 h-10 rounded-xl ${colorStyles.bg} flex items-center justify-center`}>
-          <Icon name={icon} className={colorStyles.text} filled size={22} />
+        <div className={`w-10 h-10 rounded-xl ${color.bg} flex items-center justify-center`}>
+          <Icon name={icon} className={color.text} filled size={20} />
         </div>
-        <span className="font-serif font-bold text-on-surface text-base leading-tight mt-auto">
+        <span className="font-serif font-bold text-[#191c1e] text-[15px] leading-tight mt-auto">
           {title}
         </span>
       </button>
     );
   }
 
+  /* ── Horizontal layout (Tài nguyên tinh thần) ── */
   if (layout === "horizontal") {
     return (
       <button
         onClick={onClick}
-        className="flex items-center gap-5 p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 text-left hover:shadow-md transition-all duration-300 w-full h-full min-h-[120px]"
+        className="flex items-center gap-5 p-6 rounded-2xl bg-white border border-[#e8eaf0] text-left hover:shadow-md transition-all duration-300 w-full h-full min-h-[100px] cursor-pointer"
       >
-        <div className={`w-12 h-12 rounded-xl ${colorStyles.bg} flex-shrink-0 flex items-center justify-center`}>
-          <Icon name={icon} className={colorStyles.text} filled size={24} />
+        <div className={`w-11 h-11 rounded-xl ${color.bg} flex-shrink-0 flex items-center justify-center`}>
+          <Icon name={icon} className={color.text} filled size={22} />
         </div>
         <div className="flex-grow min-w-0">
-          <h4 className="font-serif font-bold text-on-surface text-base mb-1 truncate">
+          <h4 className="font-serif font-bold text-[#191c1e] text-[16px] mb-1 leading-tight">
             {title}
           </h4>
           {description && (
-            <p className="text-sm text-on-surface-variant line-clamp-2 leading-relaxed">
+            <p className="text-[13px] text-[#727785] leading-relaxed line-clamp-2">
               {description}
             </p>
           )}
         </div>
-        <div className="flex-shrink-0 text-outline-variant hover:text-on-surface ml-2 transition-colors">
+        <div className="flex-shrink-0 text-[#c1c6d6] ml-2">
           <Icon name="arrow_forward" size={20} />
         </div>
       </button>
     );
   }
 
-  // Default Vertical
+  /* ── Vertical layout (Default for Đặt lịch tư vấn, Hỏi ẩn danh, Trò chuyện) ── */
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-start p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 text-left hover:shadow-md transition-all duration-300 w-full h-full min-h-[170px]"
+      className="flex flex-col items-start gap-6 p-6 rounded-2xl bg-white border border-[#e8eaf0] text-left hover:shadow-md transition-all duration-300 w-full h-full min-h-[170px] cursor-pointer"
     >
-      <div className={`w-12 h-12 rounded-xl ${colorStyles.bg} flex items-center justify-center mb-6`}>
-        <Icon name={icon} className={colorStyles.text} filled size={24} />
+      <div className={`w-12 h-12 rounded-xl ${color.bg} flex items-center justify-center`}>
+        <Icon name={icon} className={color.text} filled size={24} />
       </div>
       <div>
-        <h4 className="font-serif font-bold text-on-surface text-base mb-1.5 leading-tight">
+        <h4 className="font-serif font-bold text-[#191c1e] text-[16px] mb-1.5 leading-tight">
           {title}
         </h4>
         {description && (
-          <p className="text-xs text-on-surface-variant leading-normal">
+          <p className="text-[13px] text-[#727785] leading-relaxed">
             {description}
           </p>
         )}
@@ -109,12 +97,12 @@ export function QuickSupportCard({
 export function QuickSupportGrid() {
   return (
     <div className="flex flex-col gap-5 w-full">
-      {/* Title */}
-      <h3 className="text-xl md:text-2xl font-serif font-bold text-on-surface tracking-wide">
+      {/* Section Title */}
+      <h3 className="text-2xl md:text-3xl font-serif font-bold text-[#191c1e]">
         Hỗ trợ nhanh
       </h3>
 
-      {/* Grid of Cards */}
+      {/* Row 1: 3 column vertical cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <QuickSupportCard
           title="Đặt lịch tư vấn"
@@ -139,7 +127,7 @@ export function QuickSupportGrid() {
         />
       </div>
 
-      {/* Bottom Row */}
+      {/* Row 2: square + horizontal */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         <div className="md:col-span-1">
           <QuickSupportCard
