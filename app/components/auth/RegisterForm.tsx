@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { getApp } from "firebase/app";
 import {
-  getAuth,
   createUserWithEmailAndPassword,
   updateProfile,
   type AuthError,
 } from "firebase/auth";
+import { auth } from "../../src/config/firebase";
+import { createUserProfile } from "../../src/services/userService";
+import { ROLE_CONFIG, type UserRole } from "../../src/types/user.types";
 
 const LOGO_URL =
   "https://lh3.googleusercontent.com/aida/AP1WRLtPJwzVyu0SJ8xN45WKCzH5KMeKK9K9uX29vpMTR6sWzLoA9dO7QdMLuGG-hA6QAMeI9pcSIaaiX60Xc-1pydPPs3WSF2AmHHz_HNtRG9ZV9mtQdKsVnOAnlu-xbXxQEnxRsyEquWNS5_NxMnROStalzNPPc7_kp-qNq7X-kdqE5-KUzG5XWST6nkVbAGS4vhFK0fqwGS8sik6exrBr08rd84Xkqw74sCEYy5vQ1WmhTRdqGGyrYVPBBdc";
@@ -64,17 +65,12 @@ function parseFirebaseError(error: AuthError): string {
 export function RegisterForm() {
   const navigate = useNavigate();
 
-  // Lấy auth từ Firebase app đã được khởi tạo trong firebase.js
-  const auth = getAuth(getApp());
-
   // Form state
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<"student" | "parent" | "teacher">(
-    "student"
-  );
+  const [role, setRole] = useState<UserRole>("student");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // UI state
@@ -90,10 +86,10 @@ export function RegisterForm() {
     confirmPassword.length > 0 && password !== confirmPassword;
 
   const roles = [
-    { value: "student", label: "Học sinh", icon: "school" },
-    { value: "parent", label: "Phụ huynh", icon: "family_restroom" },
-    { value: "teacher", label: "Giáo viên", icon: "person_4" },
-  ] as const;
+    { value: "student" as UserRole, label: ROLE_CONFIG.student.label, icon: ROLE_CONFIG.student.icon },
+    { value: "teacher" as UserRole, label: ROLE_CONFIG.teacher.label, icon: ROLE_CONFIG.teacher.icon },
+    { value: "admin" as UserRole, label: ROLE_CONFIG.admin.label, icon: ROLE_CONFIG.admin.icon },
+  ];
 
   // ── Submit handler ─────────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -124,19 +120,23 @@ export function RegisterForm() {
         password
       );
 
-      // 2. Cập nhật displayName và photoURL role
+      // 2. Cập nhật displayName trong Firebase Auth
       await updateProfile(userCredential.user, {
         displayName: fullName.trim(),
-        // Lưu role vào photoURL tạm thời; production nên dùng Firestore
-        photoURL: `role:${role}`,
       });
 
-      // 3. Thành công
+      // 3. Lưu profile & role vào Firestore
+      await createUserProfile(userCredential.user.uid, {
+        email: userCredential.user.email,
+        displayName: fullName.trim(),
+        role,
+      });
+
+      // 4. Thành công → hiển thị thông báo rồi redirect đến dashboard
       setSuccess(true);
 
-      // Chuyển sang trang đăng nhập sau 1.8 giây
       setTimeout(() => {
-        navigate("/auth/login");
+        navigate(ROLE_CONFIG[role].dashboardPath);
       }, 1800);
     } catch (err) {
       setError(parseFirebaseError(err as AuthError));

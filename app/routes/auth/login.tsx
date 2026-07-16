@@ -1,11 +1,5 @@
 import { LoginForm } from "../../components/auth/LoginForm";
 
-<<<<<<< HEAD
-=======
-// Khởi tạo Firebase app trước khi LoginForm dùng getApp()
-import "../../src/config/firebase";
-
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
 // Import CSS external – chỉ load khi route này active
 import "../../styles/login.css";
 

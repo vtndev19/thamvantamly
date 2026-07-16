@@ -1,37 +1,16 @@
 import { useState } from "react";
-<<<<<<< HEAD
-import { Link } from "react-router";
-=======
 import { Link, useNavigate } from "react-router";
-import { getApp } from "firebase/app";
 import {
-  getAuth,
   signInWithEmailAndPassword,
   type AuthError,
 } from "firebase/auth";
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
+import { auth } from "../../src/config/firebase";
+import { getUserProfile } from "../../src/services/userService";
+import { ROLE_CONFIG } from "../../src/types/user.types";
 
 const LOGO_URL =
   "https://lh3.googleusercontent.com/aida/AP1WRLtPJwzVyu0SJ8xN45WKCzH5KMeKK9K9uX29vpMTR6sWzLoA9dO7QdMLuGG-hA6QAMeI9pcSIaaiX60Xc-1pydPPs3WSF2AmHHz_HNtRG9ZV9mtQdKsVnOAnlu-xbXxQEnxRsyEquWNS5_NxMnROStalzNPPc7_kp-qNq7X-kdqE5-KUzG5XWST6nkVbAGS4vhFK0fqwGS8sik6exrBr08rd84Xkqw74sCEYy5vQ1WmhTRdqGGyrYVPBBdc";
 
-<<<<<<< HEAD
-/**
- * LoginForm – Trang đăng nhập SafeSchool Hub.
- * Layout 2 cột: Brand panel (desktop) + Form panel.
- * Style được viết trong app/styles/login.css (external CSS).
- */
-export function LoginForm() {
-  const [showPassword, setShowPassword] = useState(false);
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    // TODO: gọi Firebase Auth / API đăng nhập ở đây
-    const data = new FormData(e.currentTarget);
-    console.log("Login attempt:", {
-      identifier: data.get("identifier"),
-      rememberMe: data.get("remember-me"),
-    });
-=======
 /** Dịch mã lỗi Firebase → tiếng Việt */
 function parseFirebaseError(error: AuthError): string {
   switch (error.code) {
@@ -61,9 +40,6 @@ function parseFirebaseError(error: AuthError): string {
 export function LoginForm() {
   const navigate = useNavigate();
 
-  // Lấy auth từ Firebase app đã được khởi tạo trong firebase.js
-  const auth = getAuth(getApp());
-
   // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -81,15 +57,16 @@ export function LoginForm() {
     setIsLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Đăng nhập thành công → chuyển về trang chủ
-      navigate("/");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Đọc role từ Firestore để redirect đúng dashboard
+      const profile = await getUserProfile(userCredential.user.uid);
+      const role = profile?.role ?? "student";
+      navigate(ROLE_CONFIG[role].dashboardPath);
     } catch (err) {
       setError(parseFirebaseError(err as AuthError));
     } finally {
       setIsLoading(false);
     }
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
   }
 
   return (
@@ -144,8 +121,6 @@ export function LoginForm() {
             </p>
           </div>
 
-<<<<<<< HEAD
-=======
           {/* Error banner */}
           {error && (
             <div className="login-error" role="alert">
@@ -156,21 +131,10 @@ export function LoginForm() {
             </div>
           )}
 
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
           {/* Main form */}
           <form onSubmit={handleSubmit} noValidate>
             {/* Input fields */}
             <div className="login-fields">
-<<<<<<< HEAD
-              {/* Email / ID */}
-              <div className="login-field">
-                <label htmlFor="identifier" className="login-label">
-                  Email hoặc Mã học sinh
-                </label>
-                <div className="login-input-wrap">
-                  <span className="material-symbols-outlined login-input-icon">
-                    person
-=======
               {/* Email */}
               <div className="login-field">
                 <label htmlFor="identifier" className="login-label">
@@ -179,18 +143,10 @@ export function LoginForm() {
                 <div className="login-input-wrap">
                   <span className="material-symbols-outlined login-input-icon">
                     mail
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
                   </span>
                   <input
                     id="identifier"
                     name="identifier"
-<<<<<<< HEAD
-                    type="text"
-                    autoComplete="username"
-                    placeholder="Nhập email hoặc mã của bạn"
-                    className="login-input"
-                    required
-=======
                     type="email"
                     autoComplete="email"
                     placeholder="Nhập địa chỉ email của bạn"
@@ -199,7 +155,6 @@ export function LoginForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={isLoading}
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
                   />
                 </div>
               </div>
@@ -220,24 +175,17 @@ export function LoginForm() {
                     autoComplete="current-password"
                     placeholder="••••••••"
                     className="login-input login-input--password"
-<<<<<<< HEAD
-                    required
-=======
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={isLoading}
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
                   />
                   <button
                     type="button"
                     className="login-toggle-visibility"
                     aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                     onClick={() => setShowPassword((v) => !v)}
-<<<<<<< HEAD
-=======
                     tabIndex={-1}
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
                   >
                     <span className="material-symbols-outlined">
                       {showPassword ? "visibility" : "visibility_off"}
@@ -255,12 +203,9 @@ export function LoginForm() {
                   name="remember-me"
                   type="checkbox"
                   className="login-checkbox"
-<<<<<<< HEAD
-=======
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   disabled={isLoading}
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
                 />
                 <span className="login-remember-label">Ghi nhớ đăng nhập</span>
               </label>
@@ -270,13 +215,6 @@ export function LoginForm() {
             </div>
 
             {/* Submit */}
-<<<<<<< HEAD
-            <button id="login-submit" type="submit" className="login-submit-btn">
-              <span className="material-symbols-outlined" style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}>
-                login
-              </span>
-              Đăng nhập
-=======
             <button
               id="login-submit"
               type="submit"
@@ -286,7 +224,7 @@ export function LoginForm() {
               {isLoading ? (
                 <>
                   <span className="login-spinner" aria-hidden="true" />
-                  Đang đăng nhập…
+                  Đăng nhập…
                 </>
               ) : (
                 <>
@@ -299,7 +237,6 @@ export function LoginForm() {
                   Đăng nhập
                 </>
               )}
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
             </button>
           </form>
 
@@ -354,7 +291,7 @@ export function LoginForm() {
               <span className="material-symbols-outlined">privacy_tip</span>
               Chính sách bảo mật
             </a>
-            <a href="#" className="login-footer-link">
+            <a href="#" className="login-forgot-link">
               <span className="material-symbols-outlined">help</span>
               Hỗ trợ
             </a>

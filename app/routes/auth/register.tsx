@@ -1,8 +1,5 @@
 import { RegisterForm } from "../../components/auth/RegisterForm";
 
-// Khởi tạo Firebase app trước khi RegisterForm dùng getApp()
-import "../../src/config/firebase";
-
 // Import CSS external – chỉ load khi route này active
 import "../../styles/register.css";
 

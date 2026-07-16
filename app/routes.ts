@@ -1,10 +1,14 @@
 import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 export default [
+  // ── Public routes ──────────────────────────────────────────────────────
   index("routes/home.tsx"),
   route("auth/login", "routes/auth/login.tsx"),
-<<<<<<< HEAD
-=======
   route("auth/register", "routes/auth/register.tsx"),
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
+  route("unauthorized", "routes/unauthorized.tsx"),
+
+  // ── Protected dashboard routes (guarded by ProtectedRoute) ────────────
+  route("dashboard/student", "routes/dashboard/student.tsx"),
+  route("dashboard/teacher", "routes/dashboard/teacher.tsx"),
+  route("dashboard/admin", "routes/dashboard/admin.tsx"),
 ] satisfies RouteConfig;
