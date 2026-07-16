@@ -16,6 +16,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { label: "Hỏi đáp", path: "/student/qna", icon: "help" },
     { label: "Kiểm tra", path: "/student/tests", icon: "fact_check" },
     { label: "Trò chuyện", path: "/student/chat", icon: "forum" },
+    { label: "Hỗ trợ", path: "/student/support", icon: "emergency" },
   ];
 
   return (
