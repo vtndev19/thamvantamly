@@ -6,7 +6,10 @@
 @theme {
   /* Font Family */
   --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+<<<<<<< HEAD
   --font-serif: "Lora", "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+=======
+>>>>>>> f3190dc59cad31921c43168efb47de439199bf06
 
   /* Color Palette */
   --color-primary: #0058bd;
