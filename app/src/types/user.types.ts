@@ -36,18 +36,18 @@ export const ROLE_CONFIG: Record<
     label: "Học sinh",
     icon: "school",
     color: "#4f46e5",
-    dashboardPath: "/dashboard/student",
+    dashboardPath: "/student/dashboard",
   },
   teacher: {
     label: "Giáo viên",
     icon: "person_4",
     color: "#059669",
-    dashboardPath: "/dashboard/teacher",
+    dashboardPath: "/teacher/dashboard",
   },
   admin: {
     label: "Quản trị viên",
     icon: "admin_panel_settings",
     color: "#dc2626",
-    dashboardPath: "/dashboard/admin",
+    dashboardPath: "/admin/dashboard",
   },
 };
