@@ -11,6 +11,7 @@ export interface AppUser {
   email: string | null;
   displayName: string | null;
   role: UserRole;
+  schoolCode?: string;
   createdAt: number; // Unix timestamp (ms)
 }
 
@@ -22,6 +23,7 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   role: UserRole;
+  schoolCode?: string;
   createdAt: number;
 }
 

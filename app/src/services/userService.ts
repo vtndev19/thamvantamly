@@ -20,6 +20,7 @@ export async function createUserProfile(
     email: string | null;
     displayName: string | null;
     role: UserRole;
+    schoolCode?: string;
   }
 ): Promise<void> {
   const userRef = doc(db, USERS_COLLECTION, uid);
@@ -28,6 +29,7 @@ export async function createUserProfile(
     email: data.email,
     displayName: data.displayName,
     role: data.role,
+    schoolCode: data.schoolCode || "",
     createdAt: Date.now(),
   });
 }

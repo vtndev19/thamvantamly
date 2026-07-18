@@ -74,6 +74,7 @@ export function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<UserRole>("student");
   const [teacherCode, setTeacherCode] = useState("");
+  const [schoolCode, setSchoolCode] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // UI state
@@ -91,7 +92,6 @@ export function RegisterForm() {
   const roles = [
     { value: "student" as UserRole, label: ROLE_CONFIG.student.label, icon: ROLE_CONFIG.student.icon },
     { value: "teacher" as UserRole, label: ROLE_CONFIG.teacher.label, icon: ROLE_CONFIG.teacher.icon },
-    { value: "admin" as UserRole, label: ROLE_CONFIG.admin.label, icon: ROLE_CONFIG.admin.icon },
   ];
 
   // ── Submit handler ─────────────────────────────────────────────────────────
@@ -116,6 +116,10 @@ export function RegisterForm() {
       setError("Mã xác thực Giáo viên không đúng. Vui lòng liên hệ ban giám hiệu để nhận mã.");
       return;
     }
+    if (!schoolCode.trim()) {
+      setError("Vui lòng nhập mã trường THPT của bạn.");
+      return;
+    }
 
     setIsLoading(true);
 
@@ -137,6 +141,7 @@ export function RegisterForm() {
         email: userCredential.user.email,
         displayName: fullName.trim(),
         role,
+        schoolCode: schoolCode.trim(),
       });
 
       // 4. Thành công → hiển thị thông báo rồi redirect đến dashboard
@@ -158,6 +163,10 @@ export function RegisterForm() {
       setError("Mã xác thực Giáo viên không đúng. Vui lòng liên hệ ban giám hiệu để nhận mã.");
       return;
     }
+    if (!schoolCode.trim()) {
+      setError("Vui lòng nhập mã trường THPT của bạn trước khi đăng ký.");
+      return;
+    }
 
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
@@ -169,6 +178,7 @@ export function RegisterForm() {
         email: userCredential.user.email,
         displayName: userCredential.user.displayName,
         role,
+        schoolCode: schoolCode.trim(),
       });
 
       // Thành công → redirect đến dashboard theo role
@@ -357,6 +367,29 @@ export function RegisterForm() {
                         className="register-input"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mã trường THPT (cho cả Giáo viên và Học sinh) */}
+                  <div className="register-field">
+                    <label htmlFor="school-code" className="register-label">
+                      Mã trường THPT
+                    </label>
+                    <div className="register-input-wrap">
+                      <span className="material-symbols-outlined register-input-icon">
+                        school
+                      </span>
+                      <input
+                        id="school-code"
+                        name="school-code"
+                        type="text"
+                        placeholder="Ví dụ: THPT-CHUVANAN hoặc THPT-NGUYENDU"
+                        className="register-input"
+                        value={schoolCode}
+                        onChange={(e) => setSchoolCode(e.target.value)}
                         required
                         disabled={isLoading}
                       />
