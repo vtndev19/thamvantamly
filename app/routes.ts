@@ -11,4 +11,9 @@ export default [
   route("dashboard/student", "routes/dashboard/student.tsx"),
   route("dashboard/teacher", "routes/dashboard/teacher.tsx"),
   route("dashboard/admin", "routes/dashboard/admin.tsx"),
+
+  // ── Legacy routes (giữ tương thích) ───────────────────────────────────
+  route("admin/dashboard", "routes/admin/dashboard.tsx"),
+  route("student/dashboard", "routes/student/dashboard.tsx"),
+  route("student/support", "routes/student/support.tsx"),
 ] satisfies RouteConfig;

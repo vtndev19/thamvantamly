@@ -534,8 +534,6 @@
 .login-card {
   animation: loginSlideIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-<<<<<<< HEAD
-=======
 
 /* ── Error banner ────────────────────────────────────────── */
 .login-error {
@@ -594,4 +592,3 @@
   cursor: not-allowed;
   transform: none !important;
 }
->>>>>>> f3190dc59cad31921c43168efb47de439199bf06
