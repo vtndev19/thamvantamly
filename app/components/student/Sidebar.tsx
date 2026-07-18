@@ -97,7 +97,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         {/* Bottom Section: CTA + Settings/Logout */}
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 pt-4 border-t border-outline-variant/30">
           {/* Quick Appointment Button */}
           <Link
             to="/student/appointments/new"
@@ -106,9 +106,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           >
             Đặt lịch ngay
           </Link>
-
-          {/* Divider */}
-          <div className="h-px bg-outline-variant/30 w-full" />
 
           {/* Settings & Logout Links */}
           <div className="flex flex-col gap-1">

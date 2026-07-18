@@ -54,6 +54,32 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Helper: lấy role từ photoURL và redirect đúng trang ────────────────────
+  function redirectByRole(photoURL: string | null) {
+    // Role được lưu trong photoURL dạng "role:student" | "role:teacher" | "role:parent"
+    const role = photoURL?.startsWith("role:") ? photoURL.slice(5) : "student";
+    localStorage.setItem("userRole", role);
+
+    // Kiểm tra xem có redirect param không (từ route guard)
+    const params = new URLSearchParams(window.location.search);
+    const redirectTo = params.get("redirect");
+    if (redirectTo) {
+      navigate(redirectTo);
+      return;
+    }
+
+    switch (role) {
+      case "teacher":
+      case "parent":
+        navigate("/admin/dashboard");
+        break;
+      case "student":
+      default:
+        navigate("/student/dashboard");
+        break;
+    }
+  }
+
   // ── Submit handler ─────────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,9 +87,9 @@ export function LoginForm() {
     setIsLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Đăng nhập thành công → chuyển về trang chủ
-      navigate("/");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Đọc role từ photoURL và redirect đúng trang
+      redirectByRole(userCredential.user.photoURL);
     } catch (err) {
       setError(parseFirebaseError(err as AuthError));
     } finally {
@@ -76,9 +102,9 @@ export function LoginForm() {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      // Đăng nhập thành công → chuyển về trang chủ
-      navigate("/");
+      const userCredential = await signInWithPopup(auth, provider);
+      // Đọc role từ photoURL và redirect đúng trang
+      redirectByRole(userCredential.user.photoURL);
     } catch (err) {
       setError(parseFirebaseError(err as AuthError));
     } finally {

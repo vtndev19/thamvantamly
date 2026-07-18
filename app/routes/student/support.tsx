@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, redirect } from "react-router";
 import { Sidebar } from "../../components/student/Sidebar";
 import { Icon } from "../../components/ui/Icon";
+import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import "../../src/config/firebase";
 
 export function meta() {
   return [
@@ -13,6 +16,36 @@ export function meta() {
     },
     { name: "robots", content: "noindex, nofollow" },
   ];
+}
+
+// ── Route Guard: chỉ role student mới được truy cập ─────────────────────────
+export async function clientLoader() {
+  // Đảm bảo Firebase app đã được khởi tạo
+  const auth = getAuth(getApp());
+
+  // Chờ Firebase xác định trạng thái auth (tránh flash redirect khi reload)
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  // Chưa đăng nhập → redirect về login
+  if (!user) {
+    throw redirect("/auth/login?redirect=/student/support");
+  }
+
+  // Kiểm tra role (lưu vào localStorage khi đăng nhập)
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "student") {
+    // Không phải student → về trang chủ hoặc dashboard của role đó
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
 }
 
 // ── Data ────────────────────────────────────────────────────────────────────

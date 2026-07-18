@@ -116,8 +116,8 @@ export default function StudentDashboard() {
 
         {/* Scrollable Dashboard Body */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 max-w-[1100px] w-full mx-auto animate-fade-in">
-          {/* Welcome greeting (mobile only fallback, now shown below header on mobile) */}
-          <div className="-mt-2 -mb-2">
+          {/* Welcome greeting */}
+          <div>
             <h2 className="text-xl md:text-[22px] font-serif font-bold text-on-surface leading-snug tracking-tight">
               Chào buổi sáng, Nam 👋
             </h2>
@@ -140,9 +140,24 @@ export default function StudentDashboard() {
                 Chúng tôi ở đây để lắng nghe, thấu hiểu và đồng hành cùng bạn
                 vượt qua những khúc mắc trong cuộc sống học đường.
               </p>
-              <button className="bg-primary hover:bg-primary-container text-on-primary text-sm font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-sm cursor-pointer whitespace-nowrap">
-                Bắt đầu chia sẻ
-              </button>
+              <div className="flex flex-wrap gap-3 items-center">
+                <button className="bg-primary hover:bg-primary-container text-on-primary text-sm font-bold px-6 py-3.5 rounded-xl transition-all duration-200 shadow-sm cursor-pointer whitespace-nowrap">
+                  Bắt đầu chia sẻ
+                </button>
+
+                {/* Emergency Report Button */}
+                <Link
+                  to="/student/support"
+                  id="btn-report-bullying"
+                  className="relative inline-flex items-center gap-2 bg-[#ba1a1a] hover:bg-[#9a1414] active:scale-95 text-white text-sm font-extrabold px-5 py-3.5 rounded-xl shadow-md transition-all duration-200 cursor-pointer whitespace-nowrap select-none overflow-hidden"
+                  aria-label="Phản ánh bạo lực học đường – Khẩn cấp"
+                >
+                  {/* Pulse ring — tuyệt đối so với nút, không ảnh hưởng icon */}
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/20 animate-ping pointer-events-none" />
+                  <Icon name="campaign" size={18} filled />
+                  Phản ánh bạo lực học đường
+                </Link>
+              </div>
             </div>
 
             {/* Right Graphic Illustration */}
