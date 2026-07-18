@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router";
 import {
   createUserWithEmailAndPassword,
   updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
   type AuthError,
 } from "firebase/auth";
 import { auth } from "../../src/config/firebase";
@@ -71,6 +73,7 @@ export function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<UserRole>("student");
+  const [teacherCode, setTeacherCode] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // UI state
@@ -109,6 +112,10 @@ export function RegisterForm() {
       setError("Mật khẩu quá yếu. Hãy thêm chữ hoa, số hoặc ký tự đặc biệt.");
       return;
     }
+    if (role === "teacher" && teacherCode.trim() !== "GV-SAFESCHOOL-2026") {
+      setError("Mã xác thực Giáo viên không đúng. Vui lòng liên hệ ban giám hiệu để nhận mã.");
+      return;
+    }
 
     setIsLoading(true);
 
@@ -135,6 +142,37 @@ export function RegisterForm() {
       // 4. Thành công → hiển thị thông báo rồi redirect đến dashboard
       setSuccess(true);
 
+      setTimeout(() => {
+        navigate(ROLE_CONFIG[role].dashboardPath);
+      }, 1800);
+    } catch (err) {
+      setError(parseFirebaseError(err as AuthError));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleGoogleRegister() {
+    setError(null);
+    if (role === "teacher" && teacherCode.trim() !== "GV-SAFESCHOOL-2026") {
+      setError("Mã xác thực Giáo viên không đúng. Vui lòng liên hệ ban giám hiệu để nhận mã.");
+      return;
+    }
+
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      const userCredential = await signInWithPopup(auth, provider);
+
+      // Lưu profile & role vào Firestore
+      await createUserProfile(userCredential.user.uid, {
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName,
+        role,
+      });
+
+      // Thành công → redirect đến dashboard theo role
+      setSuccess(true);
       setTimeout(() => {
         navigate(ROLE_CONFIG[role].dashboardPath);
       }, 1800);
@@ -238,9 +276,8 @@ export function RegisterForm() {
                   <button
                     key={r.value}
                     type="button"
-                    className={`register-role-btn${
-                      role === r.value ? " register-role-btn--active" : ""
-                    }`}
+                    className={`register-role-btn${role === r.value ? " register-role-btn--active" : ""
+                      }`}
                     onClick={() => setRole(r.value)}
                     aria-pressed={role === r.value}
                   >
@@ -257,6 +294,35 @@ export function RegisterForm() {
                   </button>
                 ))}
               </div>
+
+              {/* Teacher Verification Code */}
+              {role === "teacher" && (
+                <div className="register-field" style={{ marginTop: "1rem" }}>
+                  <label htmlFor="teacher-code" className="register-label" style={{ color: "#ba1a1a", fontWeight: "bold" }}>
+                    Mã xác thực Giáo viên
+                  </label>
+                  <div className="register-input-wrap">
+                    <span className="material-symbols-outlined register-input-icon" style={{ color: "#ba1a1a" }}>
+                      gpp_maybe
+                    </span>
+                    <input
+                      id="teacher-code"
+                      name="teacherCode"
+                      type="password"
+                      placeholder="Nhập mã đăng ký cho Giáo viên"
+                      className="register-input"
+                      style={{ borderColor: "#ba1a1a", color: "#191c1e" }}
+                      value={teacherCode}
+                      onChange={(e) => setTeacherCode(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <p style={{ fontSize: "11px", color: "#727785", marginTop: "4px", lineHeight: "1.3" }}>
+                    * Vai trò Giáo viên yêu cầu mã bảo mật để tránh mạo danh giáo viên trong trường.
+                  </p>
+                </div>
+              )}
 
               {/* Error banner */}
               {error && (
@@ -403,9 +469,8 @@ export function RegisterForm() {
                         type={showConfirmPassword ? "text" : "password"}
                         autoComplete="new-password"
                         placeholder="Nhập lại mật khẩu"
-                        className={`register-input register-input--password${
-                          passwordMismatch ? " register-input--error" : ""
-                        }`}
+                        className={`register-input register-input--password${passwordMismatch ? " register-input--error" : ""
+                          }`}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
@@ -505,6 +570,8 @@ export function RegisterForm() {
                   type="button"
                   className="register-social-btn"
                   aria-label="Đăng ký bằng Google"
+                  onClick={handleGoogleRegister}
+                  disabled={isLoading}
                 >
                   <span
                     className="material-symbols-outlined"

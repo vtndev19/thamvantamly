@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   type AuthError,
 } from "firebase/auth";
 import { auth } from "../../src/config/firebase";
-import { getUserProfile } from "../../src/services/userService";
+import { getUserProfile, createUserProfile } from "../../src/services/userService";
 import { ROLE_CONFIG } from "../../src/types/user.types";
 
 const LOGO_URL =
@@ -50,6 +52,7 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+
   // ── Submit handler ─────────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,6 +64,41 @@ export function LoginForm() {
       // Đọc role từ Firestore để redirect đúng dashboard
       const profile = await getUserProfile(userCredential.user.uid);
       const role = profile?.role ?? "student";
+      localStorage.setItem("userRole", role);
+
+      // Kiểm tra xem có redirect param không (từ route guard)
+      const params = new URLSearchParams(window.location.search);
+      const redirectTo = params.get("redirect");
+      if (redirectTo) {
+        navigate(redirectTo);
+      } else {
+        navigate(ROLE_CONFIG[role].dashboardPath);
+      }
+    } catch (err) {
+      setError(parseFirebaseError(err as AuthError));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleGoogleLogin() {
+    setError(null);
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      const userCredential = await signInWithPopup(auth, provider);
+      // Nếu chưa có profile Firestore, tạo mới với role mặc định student
+      let profile = await getUserProfile(userCredential.user.uid);
+      if (!profile) {
+        await createUserProfile(userCredential.user.uid, {
+          email: userCredential.user.email,
+          displayName: userCredential.user.displayName,
+          role: "student",
+        });
+        profile = { uid: userCredential.user.uid, email: userCredential.user.email, displayName: userCredential.user.displayName, role: "student", createdAt: Date.now() };
+      }
+      const role = profile.role ?? "student";
+      localStorage.setItem("userRole", role);
       navigate(ROLE_CONFIG[role].dashboardPath);
     } catch (err) {
       setError(parseFirebaseError(err as AuthError));
@@ -252,6 +290,8 @@ export function LoginForm() {
               type="button"
               className="login-social-btn"
               aria-label="Đăng nhập bằng Google"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
             >
               <span
                 className="material-symbols-outlined"
