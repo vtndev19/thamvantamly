@@ -22,6 +22,7 @@ export default [
   // ── Student routes ─────────────────────────────────────────────────────
   route("student/dashboard", "routes/student/dashboard.tsx"),
   route("student/support", "routes/student/support.tsx"),
+  route("student/reports", "routes/student/reports.tsx"),
   route("student/profile", "routes/student/profile.tsx"),
   route("student/history", "routes/student/history.tsx"),
 ] satisfies RouteConfig;

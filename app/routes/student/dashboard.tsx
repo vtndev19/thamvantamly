@@ -55,26 +55,20 @@ export default function StudentDashboard() {
                 <Icon name="home" size={18} filled />
                 Trang chủ
               </span>
-              {[
-                { label: "Báo cáo", to: "/student/reports", icon: "add_circle" },
-                { label: "Hồ sơ", to: "/student/profile", icon: "history" },
-              ].map((tab) => (
-                <Link
-                  key={tab.label}
-                  to={tab.to}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
-                >
-                  <Icon name={tab.icon} size={18} />
-                  {tab.label}
-                </Link>
-              ))}
-              {/* Hỗ trợ tab */}
+              <Link
+                to="/student/profile"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              >
+                <Icon name="history" size={18} />
+                Hồ sơ
+              </Link>
+              {/* Hỗ trợ & Báo cáo tab */}
               <Link
                 to="/student/support"
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
               >
                 <Icon name="emergency" size={18} />
-                Hỗ trợ
+                Hỗ trợ & Báo cáo
               </Link>
             </nav>
           </div>

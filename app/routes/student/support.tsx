@@ -5,25 +5,24 @@ import { Icon } from "../../components/ui/Icon";
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import "../../src/config/firebase";
+import { useAuth } from "../../src/contexts/AuthContext";
+import { IncidentReportModal } from "../../components/student/IncidentReportModal";
 
 export function meta() {
   return [
-    { title: "Hỗ trợ khẩn cấp – SafeSchool Hub" },
+    { title: "Hỗ trợ khẩn cấp & Phản ánh – SafeSchool Hub" },
     {
       name: "description",
       content:
-        "Trang hỗ trợ khẩn cấp dành cho học sinh. Gọi ngay đường dây hỗ trợ tâm lý và an toàn học đường 24/7.",
+        "Trang hỗ trợ khẩn cấp và báo cáo vụ việc bạo lực học đường dành cho học sinh.",
     },
     { name: "robots", content: "noindex, nofollow" },
   ];
 }
 
-// ── Route Guard: chỉ role student mới được truy cập ─────────────────────────
 export async function clientLoader() {
-  // Đảm bảo Firebase app đã được khởi tạo
   const auth = getAuth(getApp());
 
-  // Chờ Firebase xác định trạng thái auth (tránh flash redirect khi reload)
   const user = await new Promise<import("firebase/auth").User | null>(
     (resolve) => {
       const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -33,22 +32,18 @@ export async function clientLoader() {
     }
   );
 
-  // Chưa đăng nhập → redirect về login
   if (!user) {
     throw redirect("/auth/login?redirect=/student/support");
   }
 
-  // Kiểm tra role (lưu vào localStorage khi đăng nhập)
   const role = localStorage.getItem("userRole");
   if (role && role !== "student") {
-    // Không phải student → về trang chủ hoặc dashboard của role đó
     throw redirect("/auth/login?error=access_denied");
   }
 
   return null;
 }
 
-// ── Data ────────────────────────────────────────────────────────────────────
 const STEPS = [
   {
     step: 1,
@@ -62,8 +57,8 @@ const STEPS = [
   },
   {
     step: 3,
-    title: "Bấm gọi hỗ trợ",
-    desc: "Sử dụng nút gọi khẩn cấp bên cạnh hoặc gọi cho người tin cậy.",
+    title: "Tạo phản ánh khẩn cấp",
+    desc: "Bấm nút 'Tạo phản ánh' bên cạnh nút gọi khẩn cấp để gửi tới Giáo viên trường bạn.",
   },
 ];
 
@@ -89,9 +84,13 @@ const HOT_LINES = [
   { number: "113", label: "Cảnh sát" },
 ];
 
-// ── Page ────────────────────────────────────────────────────────────────────
 export default function StudentSupportPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+
+  const { user } = useAuth();
+  const userSchoolCode = user?.schoolCode || "THPT001";
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -102,9 +101,7 @@ export default function StudentSupportPage() {
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* ── Top Header ── */}
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-outline-variant/20 sticky top-0 z-30">
-          {/* Left: burger + logo/tabs */}
           <div className="flex items-center gap-4">
-            {/* Mobile hamburger */}
             <button
               onClick={() => setIsSidebarOpen(true)}
               className="p-1.5 text-on-surface hover:bg-surface-container rounded-lg lg:hidden cursor-pointer"
@@ -113,7 +110,6 @@ export default function StudentSupportPage() {
               <Icon name="menu" size={24} />
             </button>
 
-            {/* Logo */}
             <Link
               to="/student/dashboard"
               className="flex items-center gap-2 text-primary font-serif font-extrabold text-[17px] tracking-tight select-none"
@@ -122,43 +118,35 @@ export default function StudentSupportPage() {
               An Toàn Trường Học
             </Link>
 
-            {/* Tab nav (hidden on mobile) */}
             <nav className="hidden md:flex items-center gap-1 ml-6" aria-label="Support navigation">
-              {[
-                { label: "Trang chủ", to: "/student/dashboard", icon: "home" },
-                { label: "Báo cáo", to: "/student/reports", icon: "add_circle" },
-                { label: "Hồ sơ", to: "/student/profile", icon: "history" },
-              ].map((tab) => (
-                <Link
-                  key={tab.label}
-                  to={tab.to}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
-                >
-                  <Icon name={tab.icon} size={18} />
-                  {tab.label}
-                </Link>
-              ))}
-              {/* Active Tab: Hỗ trợ */}
+              <Link
+                to="/student/dashboard"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              >
+                <Icon name="home" size={18} />
+                Trang chủ
+              </Link>
+              <Link
+                to="/student/reports"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              >
+                <Icon name="assignment" size={18} />
+                Báo cáo của tôi
+              </Link>
               <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-on-primary shadow-sm">
                 <Icon name="emergency" size={18} filled />
-                Hỗ trợ
+                Hỗ trợ khẩn cấp
               </span>
             </nav>
           </div>
 
-          {/* Right: actions + avatar */}
           <div className="flex items-center gap-3">
             <button
-              className="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-colors cursor-pointer"
-              aria-label="Thông báo"
+              onClick={() => setIsReportModalOpen(true)}
+              className="hidden sm:flex items-center gap-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
             >
-              <Icon name="notifications" size={22} />
-            </button>
-            <button
-              className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-colors cursor-pointer"
-              aria-label="Trợ giúp"
-            >
-              <Icon name="help" size={22} />
+              <Icon name="report_problem" size={18} filled />
+              TẠO PHẢN ÁNH
             </button>
             <button className="w-9 h-9 rounded-full overflow-hidden border border-outline-variant/30 hover:opacity-90 transition-opacity cursor-pointer flex-shrink-0">
               <img
@@ -172,32 +160,84 @@ export default function StudentSupportPage() {
 
         {/* ── Body ── */}
         <main className="flex-1 overflow-y-auto p-5 md:p-8 animate-fade-in">
-          <div className="max-w-[1000px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+          <div className="max-w-[1050px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
 
             {/* ──── LEFT COLUMN ──── */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6">
 
-              {/* Emergency Call Card */}
-              <div className="relative overflow-hidden rounded-3xl bg-[#fff0f0] border border-[#ffd9d9] px-8 py-10 flex flex-col items-center text-center gap-5 shadow-sm">
-                {/* Warning icon */}
+              {/* Toast Success Alert */}
+              {showSuccessToast && (
+                <div className="flex items-start justify-between gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold p-4 rounded-2xl animate-fade-in shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <Icon name="check_circle" size={22} filled style={{ color: "#059669" }} />
+                    <div>
+                      <p className="font-bold text-sm">Báo cáo đã gửi thành công!</p>
+                      <p className="text-xs text-emerald-700 mt-0.5">
+                        Thông báo khẩn đã được chuyển tới hệ thống của các Giáo viên thuộc trường [{userSchoolCode}].
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowSuccessToast(false)}
+                    className="p-1 hover:bg-emerald-100 rounded-full cursor-pointer"
+                  >
+                    <Icon name="close" size={16} />
+                  </button>
+                </div>
+              )}
+
+              {/* Emergency Call & Report Action Card */}
+              <div className="relative overflow-hidden rounded-3xl bg-[#fff0f0] border border-[#ffd9d9] px-6 py-8 md:px-8 md:py-10 flex flex-col items-center text-center gap-5 shadow-sm">
                 <div className="w-16 h-16 rounded-full bg-[#ffdad6] flex items-center justify-center">
-                  <Icon name="warning" size={30} filled style={{ color: "#ba1a1a" }} />
+                  <Icon name="warning" size={32} filled style={{ color: "#ba1a1a" }} />
                 </div>
 
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-serif font-extrabold text-[#7b0000] leading-snug mb-3">
-                    Bạn đang cần trợ giúp khẩn cấp?
+                <div className="w-full text-center flex flex-col items-center justify-center" style={{ width: "100%", maxWidth: "550px" }}>
+                  <h1 className="text-xl md:text-2xl font-serif font-extrabold text-[#7b0000] leading-snug mb-2 text-center" style={{ width: "100%", display: "block" }}>
+                    Bạn cần trợ giúp hoặc muốn báo cáo bạo lực?
                   </h1>
-                  <p className="text-sm md:text-base text-[#ba1a1a]/80 font-medium leading-relaxed mx-auto">
-                    Chúng tôi ở đây để giúp bạn. Đừng ngần ngại liên hệ nếu bạn cảm thấy không an toàn.
+                  <p className="text-xs md:text-sm text-[#7b0000] opacity-90 font-medium leading-relaxed text-center" style={{ width: "100%", display: "block" }}>
+                    Nếu gặp nguy hiểm trực tiếp, gọi ngay hotline khẩn cấp. Để phản ánh vụ việc cho Giáo viên trường bạn, bấm nút Tạo phản ánh bên dưới.
                   </p>
                 </div>
 
-                {/* Big CTA Button */}
-                <button className="flex items-center gap-3 bg-[#ba1a1a] hover:bg-[#9a1414] active:scale-95 text-white text-base font-extrabold px-10 py-4 rounded-full shadow-lg transition-all duration-200 cursor-pointer tracking-wide">
-                  <Icon name="call" size={22} filled />
-                  GỌI HỖ TRỢ NGAY
-                </button>
+                {/* 2 Buttons Side-by-Side: Call Emergency & Create Report */}
+                <div className="flex items-center justify-center gap-3 flex-wrap w-full">
+                  <button className="flex items-center justify-center gap-2 bg-[#ba1a1a] hover:bg-[#9a1414] active:scale-95 text-white text-xs md:text-sm font-extrabold px-6 py-3.5 rounded-full shadow-md transition-all duration-200 cursor-pointer">
+                    <Icon name="call" size={20} filled />
+                    GỌI KHẨN CẤP (111 / 113)
+                  </button>
+
+                  <button
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-container active:scale-95 text-on-primary text-xs md:text-sm font-extrabold px-6 py-3.5 rounded-full shadow-md transition-all duration-200 cursor-pointer"
+                  >
+                    <Icon name="report_problem" size={20} filled />
+                    TẠO PHẢN ÁNH BẠO LỰC
+                  </button>
+                </div>
+              </div>
+
+              {/* Shortcut Card to Track Submitted Reports */}
+              <div className="bg-white border border-[#e8eaf0] rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                    <Icon name="assignment" size={24} filled />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-on-surface">Theo dõi phản ánh đã gửi</h3>
+                    <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
+                      Kiểm tra tiến độ và trạng thái xử lý (Chờ xử lý, Đang xử lý, Đã giải quyết) từ các Giáo viên trường bạn.
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  to="/student/reports"
+                  className="inline-flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold px-5 py-3 rounded-2xl transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  Xem tiến độ phản ánh <Icon name="chevron_right" size={18} />
+                </Link>
               </div>
 
               {/* Location Share Card */}
@@ -215,11 +255,11 @@ export default function StudentSupportPage() {
                   Gửi cảnh báo vị trí
                 </button>
               </div>
+
             </div>
 
             {/* ──── RIGHT COLUMN ──── */}
             <div className="flex flex-col gap-5">
-
               {/* Steps Card */}
               <div className="bg-white border border-[#e8eaf0] rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-5">
@@ -285,9 +325,19 @@ export default function StudentSupportPage() {
                 ))}
               </div>
             </div>
+
           </div>
         </main>
       </div>
+
+      {/* Incident Report Modal */}
+      <IncidentReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSuccess={() => {
+          setShowSuccessToast(true);
+        }}
+      />
     </div>
   );
 }

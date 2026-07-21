@@ -187,3 +187,12 @@ body {
 .animation-delay-500 {
   animation-delay: 0.5s;
 }
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

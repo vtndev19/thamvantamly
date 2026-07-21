@@ -4,8 +4,7 @@ import { Icon } from "../ui/Icon";
 const NAV_LINKS = [
   { label: "Trang chủ", href: "/" },
   { label: "Kiến thức", href: "/knowledge" },
-  { label: "Hỗ trợ", href: "/support" },
-  { label: "Báo cáo", href: "/report" },
+  { label: "Hỗ trợ & Báo cáo", href: "/student/support" },
 ];
 
 /**

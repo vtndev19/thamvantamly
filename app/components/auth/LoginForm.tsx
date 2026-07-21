@@ -7,7 +7,7 @@ import {
   type AuthError,
 } from "firebase/auth";
 import { auth } from "../../src/config/firebase";
-import { getUserProfile, createUserProfile } from "../../src/services/userService";
+import { getUserProfile, createUserProfile, seedAdminAccount } from "../../src/services/userService";
 import { ROLE_CONFIG } from "../../src/types/user.types";
 
 const LOGO_URL =
@@ -299,21 +299,7 @@ export function LoginForm() {
               >
                 g_translate
               </span>
-              Google
-            </button>
-            <button
-              id="login-school"
-              type="button"
-              className="login-social-btn"
-              aria-label="Đăng nhập bằng tài khoản trường"
-            >
-              <span
-                className="material-symbols-outlined"
-                style={{ color: "var(--color-primary)", fontVariationSettings: "'FILL' 1" }}
-              >
-                school
-              </span>
-              Tài khoản trường
+              <span>Đăng nhập với Google</span>
             </button>
           </div>
 

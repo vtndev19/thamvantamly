@@ -15,8 +15,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { label: "Lịch hẹn", path: "/student/appointments", icon: "calendar_today" },
     { label: "Hỏi đáp", path: "/student/qna", icon: "help" },
     { label: "Kiểm tra", path: "/student/tests", icon: "fact_check" },
-    { label: "Trò chuyện", path: "/student/chat", icon: "forum" },
-    { label: "Hỗ trợ", path: "/student/support", icon: "emergency" },
+    { label: "Hỗ trợ khẩn cấp", path: "/student/support", icon: "emergency" },
+    { label: "Báo cáo của tôi", path: "/student/reports", icon: "assignment" },
   ];
 
   return (

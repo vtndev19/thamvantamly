@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   createUserWithEmailAndPassword,
@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../../src/config/firebase";
 import { createUserProfile } from "../../src/services/userService";
+import { verifyTeacherCode, seedTeacherCodes } from "../../src/services/teacherCodeService";
 import { ROLE_CONFIG, type UserRole } from "../../src/types/user.types";
 
 const LOGO_URL =
@@ -84,6 +85,11 @@ export function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  // Tự động khởi tạo danh sách 50 Mã Giáo viên (GV001 -> GV050) trên Firebase khi tải trang
+  useEffect(() => {
+    seedTeacherCodes(50);
+  }, []);
+
   // Validation
   const strength = calcStrength(password);
   const passwordMismatch =
@@ -112,9 +118,16 @@ export function RegisterForm() {
       setError("Mật khẩu quá yếu. Hãy thêm chữ hoa, số hoặc ký tự đặc biệt.");
       return;
     }
-    if (role === "teacher" && teacherCode.trim() !== "GV-SAFESCHOOL-2026") {
-      setError("Mã xác thực Giáo viên không đúng. Vui lòng liên hệ ban giám hiệu để nhận mã.");
-      return;
+    if (role === "teacher") {
+      if (!teacherCode.trim()) {
+        setError("Vui lòng nhập Mã xác thực Giáo viên.");
+        return;
+      }
+      const isValid = await verifyTeacherCode(teacherCode);
+      if (!isValid) {
+        setError("Mã xác thực Giáo viên không hợp lệ (Ví dụ mã hợp lệ: GV001, GV002, GV003...). Vui lòng kiểm tra lại.");
+        return;
+      }
     }
     if (!schoolCode.trim()) {
       setError("Vui lòng nhập mã trường THPT của bạn.");
@@ -159,9 +172,16 @@ export function RegisterForm() {
 
   async function handleGoogleRegister() {
     setError(null);
-    if (role === "teacher" && teacherCode.trim() !== "GV-SAFESCHOOL-2026") {
-      setError("Mã xác thực Giáo viên không đúng. Vui lòng liên hệ ban giám hiệu để nhận mã.");
-      return;
+    if (role === "teacher") {
+      if (!teacherCode.trim()) {
+        setError("Vui lòng nhập Mã xác thực Giáo viên trước khi đăng ký.");
+        return;
+      }
+      const isValid = await verifyTeacherCode(teacherCode);
+      if (!isValid) {
+        setError("Mã xác thực Giáo viên không hợp lệ (Ví dụ mã hợp lệ: GV001, GV002, GV003...). Vui lòng kiểm tra lại.");
+        return;
+      }
     }
     if (!schoolCode.trim()) {
       setError("Vui lòng nhập mã trường THPT của bạn trước khi đăng ký.");
@@ -318,8 +338,8 @@ export function RegisterForm() {
                     <input
                       id="teacher-code"
                       name="teacherCode"
-                      type="password"
-                      placeholder="Nhập mã đăng ký cho Giáo viên"
+                      type="text"
+                      placeholder="Nhập mã xác thực (Ví dụ: GV001, GV002...)"
                       className="register-input"
                       style={{ borderColor: "#ba1a1a", color: "#191c1e" }}
                       value={teacherCode}
@@ -329,7 +349,7 @@ export function RegisterForm() {
                     />
                   </div>
                   <p style={{ fontSize: "11px", color: "#727785", marginTop: "4px", lineHeight: "1.3" }}>
-                    * Vai trò Giáo viên yêu cầu mã bảo mật để tránh mạo danh giáo viên trong trường.
+                    * Nhập mã định danh Giáo viên được cấp (Danh sách mã tự động khởi tạo trên Firebase: GV001 - GV050).
                   </p>
                 </div>
               )}
@@ -386,7 +406,7 @@ export function RegisterForm() {
                         id="school-code"
                         name="school-code"
                         type="text"
-                        placeholder="Ví dụ: THPT-CHUVANAN hoặc THPT-NGUYENDU"
+                        placeholder="Ví dụ: THPT001, THPT002..."
                         className="register-input"
                         value={schoolCode}
                         onChange={(e) => setSchoolCode(e.target.value)}
@@ -394,6 +414,9 @@ export function RegisterForm() {
                         disabled={isLoading}
                       />
                     </div>
+                    <p style={{ fontSize: "11px", color: "#727785", marginTop: "4px", lineHeight: "1.3" }}>
+                      * Mã THPT theo định dạng tăng dần (Ví dụ: THPT001, THPT002...) để đồng bộ dữ liệu cùng trường.
+                    </p>
                   </div>
 
                   {/* Email */}

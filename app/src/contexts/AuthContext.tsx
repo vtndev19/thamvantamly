@@ -57,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: fbUser.email,
               displayName: fbUser.displayName,
               role: profile.role,
+              schoolCode: profile.schoolCode,
               createdAt: profile.createdAt,
             });
           } else {
