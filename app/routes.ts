@@ -7,8 +7,21 @@ export default [
   route("auth/register", "routes/auth/register.tsx"),
   route("unauthorized", "routes/unauthorized.tsx"),
 
-  // ── Protected dashboard routes (guarded by ProtectedRoute) ────────────
-  route("dashboard/student", "routes/dashboard/student.tsx"),
-  route("dashboard/teacher", "routes/dashboard/teacher.tsx"),
-  route("dashboard/admin", "routes/dashboard/admin.tsx"),
+  // ── Admin routes ───────────────────────────────────────────────────────
+  route("admin/dashboard", "routes/admin/dashboard.tsx"),
+  route("admin/users", "routes/admin/users.tsx"),
+  route("admin/reports", "routes/admin/reports.tsx"),
+  route("admin/settings", "routes/admin/settings.tsx"),
+
+  // ── Teacher routes ─────────────────────────────────────────────────────
+  route("teacher/dashboard", "routes/teacher/dashboard.tsx"),
+  route("teacher/classes", "routes/teacher/classes.tsx"),
+  route("teacher/students", "routes/teacher/students.tsx"),
+  route("teacher/support", "routes/teacher/support.tsx"),
+
+  // ── Student routes ─────────────────────────────────────────────────────
+  route("student/dashboard", "routes/student/dashboard.tsx"),
+  route("student/support", "routes/student/support.tsx"),
+  route("student/profile", "routes/student/profile.tsx"),
+  route("student/history", "routes/student/history.tsx"),
 ] satisfies RouteConfig;
