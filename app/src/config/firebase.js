@@ -1,11 +1,13 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getDatabase } from "firebase/database";
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC-ZjZO1Bt5aX5_mwgLxadCvoVOg3LyiE4",
   authDomain: "thamvantamly-e51c8.firebaseapp.com",
+  databaseURL: "https://thamvantamly-e51c8-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "thamvantamly-e51c8",
   storageBucket: "thamvantamly-e51c8.firebasestorage.app",
   messagingSenderId: "109182238360",
@@ -21,6 +23,9 @@ export const auth = getAuth(app);
 
 // Firestore Database
 export const db = getFirestore(app);
+
+// Realtime Database
+export const database = getDatabase(app);
 
 // Analytics (chỉ chạy ở browser)
 let analytics;

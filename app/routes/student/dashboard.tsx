@@ -4,6 +4,7 @@ import { Sidebar } from "../../components/student/Sidebar";
 import { QuickSupportGrid } from "../../components/student/QuickSupportCard";
 import { FeaturedExperts } from "../../components/student/ExpertCard";
 import { Icon } from "../../components/ui/Icon";
+import { useAuth } from "../../src/contexts/AuthContext";
 
 export function meta() {
   return [
@@ -18,6 +19,18 @@ export function meta() {
 
 export default function StudentDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { user } = useAuth();
+
+  // Lời chào theo buổi trong ngày
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Chào buổi sáng" : hour < 18 ? "Chào buổi chiều" : "Chào buổi tối";
+
+  // Lấy tên hiển thị: ưu tiên displayName, fallback sang email prefix
+  const displayName =
+    user?.displayName ||
+    (user?.email ? user.email.split("@")[0] : null) ||
+    "bạn";
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -113,7 +126,7 @@ export default function StudentDashboard() {
           {/* Welcome greeting */}
           <div>
             <h2 className="text-xl md:text-[22px] font-serif font-bold text-on-surface leading-snug tracking-tight">
-              Chào buổi sáng, Nam 👋
+              {greeting}, {displayName} 👋
             </h2>
             <p className="text-xs text-on-surface-variant font-normal mt-1 tracking-wide">
               Hôm nay bạn cảm thấy thế nào?

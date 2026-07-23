@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, redirect } from "react-router";
 import { Sidebar } from "../../components/student/Sidebar";
 import { Icon } from "../../components/ui/Icon";
@@ -6,6 +6,12 @@ import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import "../../src/config/firebase";
 import { useAuth } from "../../src/contexts/AuthContext";
+import {
+  submitQuestion,
+  subscribeToUserQuestions,
+  formatQuestionDate,
+  type QuestionRecord,
+} from "../../src/services/qnaService";
 
 export function meta() {
   return [
@@ -84,15 +90,8 @@ const FAQ_DATA: FAQItem[] = [
   },
 ];
 
-interface UserQuestion {
-  id: string;
-  question: string;
-  category: string;
-  isAnonymous: boolean;
-  status: "Đang chờ duyệt" | "Đang xử lý" | "Đã trả lời";
-  createdAt: string;
-  answer?: string;
-}
+/** Alias của QuestionRecord từ qnaService – dùng trong component này */
+type UserQuestion = QuestionRecord;
 
 export default function StudentQnAPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -105,30 +104,25 @@ export default function StudentQnAPage() {
   const [newCategory, setNewCategory] = useState("Tâm lý");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Local state for user asked questions
-  const [userQuestions, setUserQuestions] = useState<UserQuestion[]>([
-    {
-      id: "uq-1",
-      question: "Làm sao để thương lượng ôn hòa với bạn bè khi xảy ra bất đồng quan điểm trong bài tập nhóm?",
-      category: "Học tập",
-      isAnonymous: true,
-      status: "Đã trả lời",
-      createdAt: "14:20 20/07/2026",
-      answer: "Chào bạn, khi làm việc nhóm xảy ra bất đồng, hãy lắng nghe hết ý kiến của các thành viên mà không ngắt lời. Sau đó đưa ra các luận điểm khách quan dựa trên yêu cầu đề bài thay vì cảm xúc cá nhân. Nếu không thống nhất được, hãy tham khảo ý kiến định hướng từ thầy cô giáo bộ môn nhé.",
-    },
-    {
-      id: "uq-2",
-      question: "Em cảm thấy lo lắng vô cớ vào mỗi tối Chủ Nhật trước khi đi học lại.",
-      category: "Tâm lý",
-      isAnonymous: false,
-      status: "Đang xử lý",
-      createdAt: "09:05 21/07/2026",
-    }
-  ]);
+  // Câu hỏi realtime từ Firebase
+  const [userQuestions, setUserQuestions] = useState<UserQuestion[]>([]);
 
   const { user } = useAuth();
   const userName = user?.displayName || "Học sinh";
+
+  // Lắng nghe realtime câu hỏi của user hiện tại
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribe = subscribeToUserQuestions(user.uid, (questions) => {
+      setUserQuestions(questions);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   // Filter FAQs
   const filteredFAQs = FAQ_DATA.filter((faq) => {
@@ -142,27 +136,37 @@ export default function StudentQnAPage() {
     setActiveFaqId(activeFaqId === id ? null : id);
   };
 
-  const handleSubmitQuestion = (e: React.FormEvent) => {
+  const handleSubmitQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuestion.trim()) return;
+    if (!newQuestion.trim() || isSubmitting) return;
 
-    const newQ: UserQuestion = {
-      id: `uq-${Date.now()}`,
-      question: newQuestion,
-      category: newCategory,
-      isAnonymous,
-      status: "Đang chờ duyệt",
-      createdAt: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) + " " + new Date().toLocaleDateString("vi-VN"),
-    };
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    setUserQuestions([newQ, ...userQuestions]);
-    setNewQuestion("");
-    setIsAnonymous(false);
-    setShowSuccessToast(true);
+    try {
+      await submitQuestion({
+        question: newQuestion,
+        category: newCategory,
+        isAnonymous,
+        sender: isAnonymous
+          ? null
+          : {
+              uid: user?.uid ?? null,
+              displayName: user?.displayName ?? "Học sinh",
+              email: user?.email ?? null,
+            },
+      });
 
-    setTimeout(() => {
-      setShowSuccessToast(false);
-    }, 5000);
+      setNewQuestion("");
+      setIsAnonymous(false);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 5000);
+    } catch (err) {
+      console.error("[QnA] Lỗi gửi câu hỏi:", err);
+      setSubmitError("Gửi câu hỏi thất bại. Vui lòng kiểm tra kết nối và thử lại.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -431,12 +435,28 @@ export default function StudentQnAPage() {
                     </label>
                   </div>
 
+                  {submitError && (
+                    <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                      {submitError}
+                    </p>
+                  )}
+
                   <button
                     type="submit"
-                    className="w-full bg-primary hover:bg-primary-container text-on-primary text-xs font-bold py-3 rounded-xl transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center gap-2"
+                    disabled={isSubmitting}
+                    className="w-full bg-primary hover:bg-primary-container text-on-primary text-xs font-bold py-3 rounded-xl transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Icon name="send" size={16} />
-                    GỬI CÂU HỎI CHO CHUYÊN GIA
+                    {isSubmitting ? (
+                      <>
+                        <Icon name="hourglass_empty" size={16} />
+                        ĐANG GỬI...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="send" size={16} />
+                        GỬI CÂU HỎI CHO CHUYÊN GIA
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
@@ -449,7 +469,7 @@ export default function StudentQnAPage() {
                     Câu hỏi của tôi ({userQuestions.length})
                   </h2>
                   <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                    Theo dõi trạng thái duyệt và phản hồi riêng tư từ tổ tư vấn nhà trường.
+                    Theo dõi trạng thái xử lý và phản hồi riêng tư từ tổ tư vấn nhà trường.
                   </p>
                 </div>
 
@@ -458,9 +478,7 @@ export default function StudentQnAPage() {
                     const statusColor =
                       uq.status === "Đã trả lời"
                         ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : uq.status === "Đang xử lý"
-                        ? "bg-amber-50 text-amber-800 border-amber-200"
-                        : "bg-blue-50 text-blue-800 border-blue-200";
+                        : "bg-amber-50 text-amber-800 border-amber-200";
 
                     return (
                       <div key={uq.id} className={`flex flex-col gap-3 ${idx > 0 ? "pt-4" : ""}`}>
@@ -470,7 +488,9 @@ export default function StudentQnAPage() {
                             {uq.status}
                           </span>
                           <span className="text-[10px] text-on-surface-variant font-medium">
-                            {uq.createdAt}
+                            {typeof uq.createdAt === "number"
+                              ? formatQuestionDate(uq.createdAt)
+                              : uq.createdAt}
                           </span>
                         </div>
 
@@ -494,7 +514,7 @@ export default function StudentQnAPage() {
                         ) : (
                           <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant italic">
                             <Icon name="hourglass_empty" size={14} />
-                            Đang đợi phân phối chuyên gia tư vấn...
+                            Đang được chuyên gia tiếp nhận...
                           </div>
                         )}
                       </div>
