@@ -15,10 +15,10 @@ import {
 
 export function meta() {
   return [
-    { title: "Hỏi đáp & Tư vấn tâm lý – SafeSchool Hub" },
+    { title: "Diễn đàn Hỏi đáp – SafeSchool Hub" },
     {
       name: "description",
-      content: "Hỏi đáp, tư vấn trực tuyến và giải đáp thắc mắc về tâm lý học đường, học tập và sức khỏe cho học sinh.",
+      content: "Diễn đàn thảo luận, hỏi đáp và tư vấn tâm lý học đường dành cho học sinh.",
     },
     { name: "robots", content: "noindex, nofollow" },
   ];
@@ -26,144 +26,332 @@ export function meta() {
 
 export async function clientLoader() {
   const auth = getAuth(getApp());
-
-  const user = await new Promise<import("firebase/auth").User | null>(
-    (resolve) => {
-      const unsubscribe = auth.onAuthStateChanged((u) => {
-        unsubscribe();
-        resolve(u);
-      });
-    }
-  );
-
-  if (!user) {
-    throw redirect("/auth/login?redirect=/student/qna");
-  }
-
+  const user = await new Promise<import("firebase/auth").User | null>((resolve) => {
+    const unsubscribe = auth.onAuthStateChanged((u) => { unsubscribe(); resolve(u); });
+  });
+  if (!user) throw redirect("/auth/login?redirect=/student/qna");
   const role = localStorage.getItem("userRole");
-  if (role && role !== "student") {
-    throw redirect("/auth/login?error=access_denied");
-  }
-
+  if (role && role !== "student") throw redirect("/auth/login?error=access_denied");
   return null;
 }
 
+// ─── Types & Constants ────────────────────────────────────────────────────────
+
+type UserQuestion = QuestionRecord;
+
 const CATEGORIES = ["Tất cả", "Tâm lý", "Bạo lực học đường", "Học tập", "Sức khỏe"];
 
-interface FAQItem {
-  id: string;
-  question: string;
-  answer: string;
-  category: string;
-}
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  "Tâm lý":            { bg: "#ede9fe", text: "#6d28d9" },
+  "Bạo lực học đường": { bg: "#fee2e2", text: "#b91c1c" },
+  "Học tập":           { bg: "#dbeafe", text: "#1d4ed8" },
+  "Sức khỏe":          { bg: "#dcfce7", text: "#15803d" },
+};
 
-const FAQ_DATA: FAQItem[] = [
+// Seed FAQ posts — shown as "forum threads answered by experts"
+const FORUM_POSTS = [
   {
-    id: "faq-1",
+    id: "p1",
+    author: "Học sinh lớp 10A",
+    avatar: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?q=80&w=100",
+    isAnonymous: false,
     category: "Tâm lý",
-    question: "Làm thế nào để vượt qua áp lực học tập và thi cử căng thẳng?",
-    answer: "Để giảm áp lực thi cử, bạn nên lập kế hoạch ôn tập sớm, phân bổ thời gian hợp lý (học 45 phút, nghỉ 5-10 phút). Đừng quên ngủ đủ 7-8 tiếng mỗi ngày và tham gia các hoạt động thể chất nhẹ nhàng. Nếu cảm thấy quá tải, hãy chia sẻ ngay với giáo viên chủ nhiệm hoặc chuyên gia tâm lý tại phòng tư vấn học đường.",
+    title: "Làm thế nào để vượt qua áp lực học tập và thi cử căng thẳng?",
+    body: "Gần đến kỳ thi mình rất hay bị mất ngủ, lo lắng quá mức. Các bạn có cách nào để vừa ôn tập tốt mà vẫn giữ được sức khỏe tinh thần không?",
+    time: "2 giờ trước",
+    views: 84,
+    replies: 3,
+    upvotes: 12,
+    answer: "Để giảm áp lực thi cử, bạn nên lập kế hoạch ôn tập sớm, phân bổ thời gian hợp lý (học 45 phút, nghỉ 5–10 phút). Đừng quên ngủ đủ 7–8 tiếng mỗi ngày và tập thể dục nhẹ nhàng. Nếu cảm thấy quá tải, hãy chia sẻ với giáo viên chủ nhiệm hoặc chuyên gia tâm lý học đường.",
+    answerBy: "ThS. Trần Thị Lan – Chuyên gia tâm lý",
   },
   {
-    id: "faq-2",
+    id: "p2",
+    author: "Ẩn danh",
+    avatar: "",
+    isAnonymous: true,
     category: "Bạo lực học đường",
-    question: "Tôi phải làm gì khi chứng kiến bạn cùng lớp bị bắt nạt?",
-    answer: "Đầu tiên, hãy đảm bảo sự an toàn của bản thân. Bạn không nên tham gia vào cuộc tranh chấp mà hãy tìm kiếm sự giúp đỡ từ giáo viên, giám thị hoặc báo cáo ẩn danh qua hệ thống SafeSchool Hub. Hành động nhanh chóng của bạn có thể bảo vệ bạn học khỏi các tổn thương nghiêm trọng.",
+    title: "Tôi phải làm gì khi chứng kiến bạn cùng lớp bị bắt nạt?",
+    body: "Có một nhóm bạn hay bắt nạt một bạn trong lớp mình, mình rất muốn giúp nhưng sợ bị liên lụy. Mình nên làm gì?",
+    time: "5 giờ trước",
+    views: 127,
+    replies: 5,
+    upvotes: 21,
+    answer: "Đầu tiên, hãy đảm bảo sự an toàn của bản thân. Không nên tham gia vào cuộc tranh chấp. Thay vào đó, hãy báo cáo với giáo viên, giám thị hoặc dùng tính năng báo cáo ẩn danh trên SafeSchool Hub. Hành động nhanh của bạn có thể bảo vệ bạn học khỏi tổn thương nghiêm trọng.",
+    answerBy: "Ban Tư vấn Học đường",
   },
   {
-    id: "faq-3",
+    id: "p3",
+    author: "Minh Khoa",
+    avatar: "https://images.unsplash.com/photo-1463453091185-61582044d556?q=80&w=100",
+    isAnonymous: false,
     category: "Học tập",
-    question: "Phương pháp ghi nhớ thông tin hiệu quả khi tự học tại nhà là gì?",
-    answer: "Bạn có thể áp dụng phương pháp Active Recall (chủ động gợi nhớ lại kiến thức) kết hợp Spaced Repetition (ôn tập ngắt quãng). Việc vẽ bản đồ tư duy (Mindmap) hoặc giảng giải lại bài học cho bạn bè cũng giúp ghi nhớ sâu sắc hơn thay vì chỉ đọc đi đọc lại tài liệu.",
+    title: "Phương pháp ghi nhớ thông tin hiệu quả khi tự học tại nhà?",
+    body: "Mình hay học bài nhưng đến hôm sau lại quên hết. Có phương pháp học nào giúp nhớ lâu hơn không?",
+    time: "1 ngày trước",
+    views: 203,
+    replies: 7,
+    upvotes: 35,
+    answer: "Bạn có thể áp dụng Active Recall (gợi nhớ chủ động) kết hợp Spaced Repetition (ôn tập ngắt quãng). Vẽ Mindmap hoặc giảng lại bài cho bạn bè cũng giúp ghi nhớ sâu hơn nhiều so với chỉ đọc tài liệu.",
+    answerBy: "TS. Nguyễn Văn Nam – Tư vấn học đường",
   },
   {
-    id: "faq-4",
+    id: "p4",
+    author: "Thảo Nguyên",
+    avatar: "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?q=80&w=100",
+    isAnonymous: false,
     category: "Sức khỏe",
-    question: "Làm sao để thiết lập chế độ sinh hoạt lành mạnh chống mệt mỏi?",
-    answer: "Hãy duy trì thói quen uống đủ nước (1.5 - 2 lít/ngày), hạn chế thức khuya sau 11h đêm, hạn chế sử dụng thiết bị điện tử ít nhất 30 phút trước khi ngủ. Ăn sáng đầy đủ dưỡng chất và tránh xa các đồ ăn nhanh nhiều dầu mỡ vào buổi tối.",
+    title: "Làm sao để thiết lập chế độ sinh hoạt lành mạnh chống mệt mỏi?",
+    body: "Mình hay cảm thấy mệt mỏi dù không làm gì nhiều, đặc biệt là buổi chiều sau giờ học. Mọi người có bí quyết gì không?",
+    time: "2 ngày trước",
+    views: 156,
+    replies: 4,
+    upvotes: 18,
+    answer: "Hãy uống đủ nước (1.5–2 lít/ngày), hạn chế thức khuya sau 11h, tránh điện thoại 30 phút trước khi ngủ. Ăn sáng đầy đủ và tránh đồ ăn nhanh nhiều dầu mỡ vào buổi tối.",
+    answerBy: "Chuyên viên Lê Hoàng – Sức khỏe học đường",
   },
   {
-    id: "faq-5",
+    id: "p5",
+    author: "Ẩn danh",
+    avatar: "",
+    isAnonymous: true,
     category: "Tâm lý",
-    question: "Làm sao để cải thiện kỹ năng giao tiếp và tự tin hơn trước đám đông?",
-    answer: "Sự tự tin đến từ sự chuẩn bị chu đáo và luyện tập đều đặn. Hãy bắt đầu bằng cách phát biểu ý kiến trong các nhóm nhỏ, luyện nói trước gương, duy trì giao tiếp bằng mắt khi trò chuyện và tập trung vào thông điệp bạn muốn truyền tải thay vì lo lắng người khác nghĩ gì về mình.",
+    title: "Làm sao để tự tin hơn khi phát biểu trước đám đông?",
+    body: "Mỗi khi phải phát biểu trước lớp mình lại run và quên hết nội dung, dù đã chuẩn bị kỹ. Mình cần làm gì?",
+    time: "3 ngày trước",
+    views: 98,
+    replies: 6,
+    upvotes: 27,
+    answer: "Sự tự tin đến từ sự luyện tập. Hãy bắt đầu bằng cách phát biểu trong các nhóm nhỏ, luyện nói trước gương, và tập trung vào thông điệp bạn muốn truyền tải thay vì lo lắng người khác nghĩ gì về mình.",
+    answerBy: "ThS. Trần Thị Lan – Chuyên gia tâm lý",
   },
 ];
 
-/** Alias của QuestionRecord từ qnaService – dùng trong component này */
-type UserQuestion = QuestionRecord;
+// ─── Thread Card Component ────────────────────────────────────────────────────
+
+function ThreadCard({
+  post,
+  onClick,
+}: {
+  post: typeof FORUM_POSTS[0];
+  onClick: () => void;
+}) {
+  const [upvoted, setUpvoted] = useState(false);
+  const catColor = CATEGORY_COLORS[post.category] ?? { bg: "#f3f4f6", text: "#374151" };
+
+  return (
+    <article
+      className="bg-white border border-[#e8eaf0] rounded-2xl hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer group overflow-hidden"
+      onClick={onClick}
+    >
+      <div className="p-5">
+        {/* Top row: author + time */}
+        <div className="flex items-center gap-2.5 mb-3">
+          {post.isAnonymous ? (
+            <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center flex-shrink-0">
+              <Icon name="person" size={18} style={{ color: "#9ca3af" }} />
+            </div>
+          ) : (
+            <img src={post.avatar} alt={post.author} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-bold text-on-surface">{post.author}</span>
+            <span className="text-[11px] text-on-surface-variant ml-2">· {post.time}</span>
+          </div>
+          <span
+            className="px-2.5 py-1 rounded-full text-[10px] font-extrabold flex-shrink-0"
+            style={{ backgroundColor: catColor.bg, color: catColor.text }}
+          >
+            {post.category}
+          </span>
+        </div>
+
+        {/* Title */}
+        <h3 className="text-sm font-bold text-on-surface leading-snug mb-2 group-hover:text-primary transition-colors">
+          {post.title}
+        </h3>
+
+        {/* Body preview */}
+        <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2">
+          {post.body}
+        </p>
+
+        {/* Expert answered badge */}
+        {post.answer && (
+          <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 w-fit">
+            <Icon name="check_circle" size={13} filled style={{ color: "#059669" }} />
+            Đã được chuyên gia trả lời
+          </div>
+        )}
+      </div>
+
+      {/* Bottom stats bar */}
+      <div className="flex items-center gap-4 px-5 py-3 border-t border-outline-variant/20 bg-surface-container/20">
+        <button
+          className={`flex items-center gap-1 text-xs font-bold transition-colors cursor-pointer ${upvoted ? "text-primary" : "text-on-surface-variant hover:text-primary"}`}
+          onClick={(e) => { e.stopPropagation(); setUpvoted(!upvoted); }}
+        >
+          <Icon name={upvoted ? "thumb_up" : "thumb_up"} size={14} filled={upvoted} />
+          {post.upvotes + (upvoted ? 1 : 0)}
+        </button>
+        <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+          <Icon name="chat_bubble_outline" size={14} />
+          {post.replies} trả lời
+        </span>
+        <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+          <Icon name="visibility" size={14} />
+          {post.views} lượt xem
+        </span>
+      </div>
+    </article>
+  );
+}
+
+// ─── Thread Detail Modal ──────────────────────────────────────────────────────
+
+function ThreadModal({
+  post,
+  onClose,
+}: {
+  post: typeof FORUM_POSTS[0];
+  onClose: () => void;
+}) {
+  const catColor = CATEGORY_COLORS[post.category] ?? { bg: "#f3f4f6", text: "#374151" };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      style={{ animation: "fadeIn 0.2s ease" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col"
+        style={{ width: "min(680px, calc(100vw - 2rem))", maxHeight: "90vh", animation: "slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20 flex-shrink-0" style={{ background: "linear-gradient(135deg,#eff6ff,#f5f3ff)" }}>
+          <div className="flex items-center gap-3">
+            <span
+              className="px-2.5 py-1 rounded-full text-[11px] font-extrabold"
+              style={{ backgroundColor: catColor.bg, color: catColor.text }}
+            >
+              {post.category}
+            </span>
+            <span className="text-xs text-on-surface-variant">Chi tiết bài viết</span>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/80 text-on-surface-variant cursor-pointer transition-colors">
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-6 flex flex-col gap-5">
+          {/* Original post */}
+          <div>
+            <h2 className="text-xl font-bold text-on-surface mb-4 leading-snug">{post.title}</h2>
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-outline-variant/20">
+              {post.isAnonymous ? (
+                <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center flex-shrink-0">
+                  <Icon name="person" size={22} style={{ color: "#9ca3af" }} />
+                </div>
+              ) : (
+                <img src={post.avatar} alt={post.author} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+              )}
+              <div className="flex-1">
+                <p className="text-sm font-bold text-on-surface">{post.author}</p>
+                <p className="text-xs text-on-surface-variant">{post.time}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1 text-xs text-on-surface-variant"><Icon name="thumb_up" size={13} /> {post.upvotes}</span>
+                <span className="flex items-center gap-1 text-xs text-on-surface-variant"><Icon name="visibility" size={13} /> {post.views}</span>
+              </div>
+            </div>
+            <p className="text-sm text-on-surface leading-7 bg-surface-container/30 rounded-2xl p-5 border border-outline-variant/20">
+              {post.body}
+            </p>
+          </div>
+
+          {/* Expert answer */}
+          {post.answer && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex-1 h-px bg-outline-variant/30" />
+                <span className="text-[11px] font-bold text-on-surface-variant px-2">PHẢN HỒI TỪ CHUYÊN GIA</span>
+                <div className="flex-1 h-px bg-outline-variant/30" />
+              </div>
+              <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-2xl p-4 flex gap-3">
+                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Icon name="support_agent" size={18} style={{ color: "white" }} filled />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[11px] font-extrabold text-primary mb-2 uppercase tracking-wide">{post.answerBy}</p>
+                  <p className="text-sm text-on-surface leading-relaxed">{post.answer}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StudentQnAPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
-  const [activeFaqId, setActiveFaqId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeThread, setActiveThread] = useState<typeof FORUM_POSTS[0] | null>(null);
+  const [showPostForm, setShowPostForm] = useState(false);
 
   // Form states
-  const [newQuestion, setNewQuestion] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newBody, setNewBody] = useState("");
   const [newCategory, setNewCategory] = useState("Tâm lý");
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Câu hỏi realtime từ Firebase
+  // My questions from Firebase
   const [userQuestions, setUserQuestions] = useState<UserQuestion[]>([]);
+  const [activeTab, setActiveTab] = useState<"forum" | "mine">("forum");
 
   const { user } = useAuth();
-  const userName = user?.displayName || "Học sinh";
 
-  // Lắng nghe realtime câu hỏi của user hiện tại
   useEffect(() => {
     if (!user?.uid) return;
-
-    const unsubscribe = subscribeToUserQuestions(user.uid, (questions) => {
-      setUserQuestions(questions);
-    });
-
-    return () => unsubscribe();
+    const unsub = subscribeToUserQuestions(user.uid, (qs) => setUserQuestions(qs));
+    return () => unsub();
   }, [user?.uid]);
 
-  // Filter FAQs
-  const filteredFAQs = FAQ_DATA.filter((faq) => {
-    const matchesSearch = faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "Tất cả" || faq.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+  const filteredPosts = FORUM_POSTS.filter((p) => {
+    const matchCat = selectedCategory === "Tất cả" || p.category === selectedCategory;
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q);
+    return matchCat && matchSearch;
   });
 
-  const toggleFaq = (id: string) => {
-    setActiveFaqId(activeFaqId === id ? null : id);
-  };
-
-  const handleSubmitQuestion = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuestion.trim() || isSubmitting) return;
-
+    if (!newTitle.trim() || !newBody.trim() || isSubmitting) return;
     setIsSubmitting(true);
     setSubmitError(null);
-
     try {
       await submitQuestion({
-        question: newQuestion,
+        question: `${newTitle}\n\n${newBody}`,
         category: newCategory,
         isAnonymous,
-        sender: isAnonymous
-          ? null
-          : {
-              uid: user?.uid ?? null,
-              displayName: user?.displayName ?? "Học sinh",
-              email: user?.email ?? null,
-            },
+        sender: isAnonymous ? null : { uid: user?.uid ?? null, displayName: user?.displayName ?? "Học sinh", email: user?.email ?? null },
       });
-
-      setNewQuestion("");
-      setIsAnonymous(false);
+      setNewTitle(""); setNewBody(""); setIsAnonymous(false);
+      setShowPostForm(false);
       setShowSuccessToast(true);
+      setActiveTab("mine");
       setTimeout(() => setShowSuccessToast(false), 5000);
-    } catch (err) {
-      console.error("[QnA] Lỗi gửi câu hỏi:", err);
-      setSubmitError("Gửi câu hỏi thất bại. Vui lòng kiểm tra kết nối và thử lại.");
+    } catch {
+      setSubmitError("Gửi thất bại. Vui lòng thử lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -171,364 +359,391 @@ export default function StudentQnAPage() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Header */}
+        {/* ── Header ── */}
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-outline-variant/20 sticky top-0 z-30">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="p-1.5 text-on-surface hover:bg-surface-container rounded-lg lg:hidden cursor-pointer"
-              aria-label="Mở menu"
-            >
+            <button onClick={() => setIsSidebarOpen(true)} className="p-1.5 text-on-surface hover:bg-surface-container rounded-lg lg:hidden cursor-pointer" aria-label="Mở menu">
               <Icon name="menu" size={24} />
             </button>
-
-            <Link
-              to="/student/dashboard"
-              className="flex items-center gap-2 text-primary font-serif font-extrabold text-[17px] tracking-tight select-none"
-            >
+            <Link to="/student/dashboard" className="flex items-center gap-2 text-primary font-serif font-extrabold text-[17px] tracking-tight select-none">
               <Icon name="shield" filled size={22} />
               An Toàn Trường Học
             </Link>
-
-            <nav className="hidden md:flex items-center gap-1 ml-6" aria-label="QnA navigation">
-              <Link
-                to="/student/dashboard"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
-              >
-                <Icon name="home" size={18} />
-                Trang chủ
+            <nav className="hidden md:flex items-center gap-1 ml-6">
+              <Link to="/student/dashboard" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors">
+                <Icon name="home" size={18} /> Trang chủ
               </Link>
               <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-on-primary shadow-sm">
-                <Icon name="help" size={18} filled />
-                Hỏi đáp & Tư vấn
+                <Icon name="forum" size={18} filled /> Diễn đàn
               </span>
-              <Link
-                to="/student/support"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
-              >
-                <Icon name="emergency" size={18} />
-                Hỗ trợ khẩn cấp
+              <Link to="/student/experts" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors">
+                <Icon name="psychology" size={18} /> Chuyên gia
+              </Link>
+              <Link to="/student/support" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors">
+                <Icon name="emergency" size={18} /> Hỗ trợ khẩn cấp
               </Link>
             </nav>
           </div>
-
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowPostForm(true)}
+              className="hidden sm:flex items-center gap-2 bg-primary text-on-primary text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
+            >
+              <Icon name="add" size={16} />
+              Đăng bài mới
+            </button>
             <button className="w-9 h-9 rounded-full overflow-hidden border border-outline-variant/30 hover:opacity-90 transition-opacity cursor-pointer flex-shrink-0">
-              <img
-                src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=100&auto=format&fit=crop"
-                alt="Ảnh đại diện"
-                className="w-full h-full object-cover"
-              />
+              <img src={user?.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=100&auto=format&fit=crop"} alt="Ảnh đại diện" className="w-full h-full object-cover" />
             </button>
           </div>
         </header>
 
-        {/* Body */}
-        <main className="flex-1 overflow-y-auto p-5 md:p-8 animate-fade-in">
-          <div className="max-w-[760px] mx-auto flex flex-col gap-8">
-            
-            {/* LEFT COLUMN: FAQ Search & Accordion */}
-            <div className="flex flex-col gap-6">
-              
-              {/* Success Toast */}
+        {/* ── Body ── */}
+        <main className="flex-1 overflow-y-auto animate-fade-in">
+          {/* Forum Banner */}
+          <div className="px-5 md:px-8 py-6" style={{ background: "linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%)", borderBottom: "1px solid #e8eaf0" }}>
+            <div className="max-w-[1050px] mx-auto">
+              <div className="flex flex-col lg:flex-row gap-6 items-start md:items-center justify-between">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-serif font-extrabold text-on-surface flex items-center gap-2">
+                    <Icon name="forum" size={30} filled style={{ color: "#0058bd" }} />
+                    Diễn đàn Hỏi đáp
+                  </h1>
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    Thảo luận, chia sẻ và nhận tư vấn từ chuyên gia tâm lý học đường.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 text-center">
+                  {[{ label: "Bài viết", value: FORUM_POSTS.length + userQuestions.length }, { label: "Đã trả lời", value: FORUM_POSTS.filter(p => p.answer).length }, { label: "Thành viên", value: "1.2K" }].map(s => (
+                    <div key={s.label}>
+                      <p className="text-xl font-extrabold text-primary">{s.value}</p>
+                      <p className="text-[11px] text-on-surface-variant">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-[1100px] mx-auto px-5 md:px-8 py-6 flex flex-col lg:flex-row gap-6 items-start">
+
+            {/* ── LEFT: Thread list ── */}
+            <div className="flex-1 min-w-0 flex flex-col gap-4">
+              {/* Toast */}
               {showSuccessToast && (
-                <div className="flex items-start justify-between gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold p-4 rounded-2xl animate-fade-in shadow-sm">
+                <div className="flex items-start justify-between gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl shadow-sm">
                   <div className="flex items-center gap-3">
                     <Icon name="check_circle" size={22} filled style={{ color: "#059669" }} />
                     <div>
-                      <p className="font-bold text-sm">Gửi câu hỏi thành công!</p>
-                      <p className="text-xs text-emerald-700 mt-0.5">
-                        Câu hỏi của bạn đã được chuyển tới ban biên tập và chuyên gia tâm lý học đường để kiểm duyệt & trả lời.
-                      </p>
+                      <p className="font-bold text-sm">Đăng bài thành công!</p>
+                      <p className="text-xs text-emerald-700 mt-0.5">Câu hỏi đã được gửi tới ban tư vấn và sẽ được trả lời sớm nhất.</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setShowSuccessToast(false)}
-                    className="p-1 hover:bg-emerald-100 rounded-full cursor-pointer"
-                  >
-                    <Icon name="close" size={16} />
-                  </button>
+                  <button onClick={() => setShowSuccessToast(false)} className="p-1 hover:bg-emerald-100 rounded-full cursor-pointer"><Icon name="close" size={16} /></button>
                 </div>
               )}
 
-              {/* Title & Introduction */}
-              <div>
-                <h1 className="text-2xl font-serif font-extrabold text-on-surface">Hỏi đáp & Giải đáp tâm lý</h1>
-                <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
-                  Tìm kiếm câu trả lời nhanh chóng từ thư viện câu hỏi thường gặp của SafeSchool Hub hoặc chủ động gửi câu hỏi riêng cho chuyên gia.
-                </p>
-              </div>
-
-              {/* Search Bar */}
-              <div className="relative bg-white border border-[#e8eaf0] rounded-2xl p-2 flex items-center shadow-xs">
-                <div className="pl-3 text-on-surface-variant flex items-center justify-center">
-                  <Icon name="search" size={22} />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm câu hỏi hoặc câu trả lời..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full text-sm pl-3 pr-4 py-2 border-0 bg-transparent text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-0"
-                />
-                {searchQuery && (
+              {/* Tab: Forum / My Questions */}
+              <div className="flex items-center gap-1 bg-surface-container/40 rounded-xl p-1 w-fit border border-outline-variant/20">
+                {([["forum", "forum", "Diễn đàn"], ["mine", "history", `Bài của tôi (${userQuestions.length})`]] as const).map(([key, icon, label]) => (
                   <button
-                    onClick={() => setSearchQuery("")}
-                    className="p-1.5 text-on-surface-variant hover:bg-surface-container rounded-full cursor-pointer mr-1"
-                    aria-label="Xóa tìm kiếm"
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === key ? "bg-white shadow-sm text-primary" : "text-on-surface-variant hover:text-on-surface"}`}
                   >
-                    <Icon name="close" size={16} />
+                    <Icon name={icon} size={16} />
+                    {label}
                   </button>
-                )}
+                ))}
               </div>
 
-              {/* Category Filter Chips */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                {CATEGORIES.map((cat) => {
-                  const isActive = selectedCategory === cat;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                        isActive
-                          ? "bg-primary text-on-primary shadow-sm"
-                          : "bg-white border border-[#e8eaf0] text-on-surface-variant hover:bg-surface-container"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* FAQs Accordion Grid */}
-              <div className="flex flex-col gap-3">
-                <h3 className="text-sm font-bold text-on-surface-variant tracking-wide mb-1 uppercase">
-                  Câu hỏi thường gặp ({filteredFAQs.length})
-                </h3>
-
-                {filteredFAQs.length > 0 ? (
-                  filteredFAQs.map((faq) => {
-                    const isOpen = activeFaqId === faq.id;
-                    return (
-                      <div
-                        key={faq.id}
-                        className={`bg-white border rounded-2xl transition-all duration-200 overflow-hidden shadow-xs ${
-                          isOpen ? "border-primary bg-primary/2" : "border-[#e8eaf0] hover:border-outline-variant/60"
-                        }`}
-                      >
-                        {/* Question Header */}
-                        <button
-                          onClick={() => toggleFaq(faq.id)}
-                          className="w-full text-left px-5 py-4 flex items-center justify-between gap-4 cursor-pointer"
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-surface-container-highest text-on-surface-variant mt-0.5 uppercase whitespace-nowrap">
-                              {faq.category}
-                            </span>
-                            <span className="text-sm font-bold text-on-surface leading-snug">{faq.question}</span>
-                          </div>
-                          <span
-                            className={`transform transition-transform duration-200 text-on-surface-variant flex-shrink-0 ${
-                              isOpen ? "rotate-180 text-primary" : ""
-                            }`}
-                          >
-                            <Icon name="expand_more" size={20} />
-                          </span>
-                        </button>
-
-                        {/* Answer content */}
-                        <div
-                          className={`transition-all duration-300 ease-in-out ${
-                            isOpen ? "max-h-[500px] border-t border-[#e8eaf0]/40" : "max-h-0 pointer-events-none"
-                          }`}
-                        >
-                          <div className="px-5 py-4 text-xs md:text-sm text-on-surface-variant leading-relaxed bg-[#fafbfc]">
-                            {faq.answer}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-12 bg-white border border-dashed border-outline-variant/60 rounded-3xl p-6">
-                    <div className="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center mx-auto mb-3 text-on-surface-variant/40">
-                      <Icon name="search_off" size={24} />
-                    </div>
-                    <p className="text-sm font-bold text-on-surface">Không tìm thấy kết quả phù hợp</p>
-                    <p className="text-xs text-on-surface-variant mt-1">
-                      Thử nhập từ khóa khác hoặc gửi câu hỏi trực tiếp cho chúng tôi ở cột bên cạnh.
-                    </p>
+              {/* Search + Filter (forum tab only) */}
+              {activeTab === "forum" && (
+                <>
+                  <div className="flex items-center gap-2 bg-white border border-[#e8eaf0] rounded-2xl px-4 py-2.5 shadow-xs">
+                    <Icon name="search" size={20} style={{ color: "#9ca3af" }} />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm bài viết..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="flex-1 text-sm bg-transparent outline-none text-on-surface placeholder:text-on-surface-variant/50"
+                    />
+                    {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer text-on-surface-variant hover:text-on-surface"><Icon name="close" size={16} /></button>}
                   </div>
-                )}
-              </div>
 
+                  <div className="flex gap-2 flex-wrap">
+                    {CATEGORIES.map((cat) => {
+                      const active = selectedCategory === cat;
+                      const cc = cat === "Tất cả" ? null : CATEGORY_COLORS[cat];
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => setSelectedCategory(cat)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${active ? (cc ? "" : "bg-primary text-on-primary border-primary shadow-sm") : "bg-white border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary"}`}
+                          style={active && cc ? { backgroundColor: cc.bg, color: cc.text, borderColor: cc.text + "40" } : undefined}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Threads */}
+                  {filteredPosts.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                      {filteredPosts.map((post) => (
+                        <ThreadCard key={post.id} post={post} onClick={() => setActiveThread(post)} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-16 bg-white border border-dashed border-outline-variant/40 rounded-2xl">
+                      <Icon name="search_off" size={36} style={{ color: "#d1d5db" }} />
+                      <p className="text-sm font-bold text-on-surface mt-3">Không tìm thấy bài viết</p>
+                      <p className="text-xs text-on-surface-variant mt-1">Thử từ khóa khác hoặc thay đổi bộ lọc.</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* My Questions Tab */}
+              {activeTab === "mine" && (
+                <div className="flex flex-col gap-3">
+                  {userQuestions.length === 0 ? (
+                    <div className="text-center py-16 bg-white border border-dashed border-outline-variant/40 rounded-2xl">
+                      <Icon name="forum" size={36} style={{ color: "#d1d5db" }} />
+                      <p className="text-sm font-bold text-on-surface mt-3">Bạn chưa đăng bài nào</p>
+                      <p className="text-xs text-on-surface-variant mt-1">Nhấn "Đăng bài mới" để đặt câu hỏi đầu tiên!</p>
+                      <button onClick={() => setShowPostForm(true)} className="mt-4 flex items-center gap-2 bg-primary text-on-primary text-xs font-bold px-5 py-2.5 rounded-full mx-auto hover:bg-primary/90 transition-colors cursor-pointer">
+                        <Icon name="add" size={16} /> Đăng bài ngay
+                      </button>
+                    </div>
+                  ) : (
+                    userQuestions.map((uq, idx) => {
+                      const isAnswered = uq.status === "Đã trả lời";
+                      return (
+                        <article key={uq.id} className="bg-white border border-[#e8eaf0] rounded-2xl overflow-hidden shadow-xs">
+                          <div className="p-5">
+                            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                              <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${isAnswered ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                                <Icon name={isAnswered ? "check_circle" : "hourglass_empty"} size={11} filled={isAnswered} />
+                                {uq.status}
+                              </span>
+                              <span className="text-[11px] text-on-surface-variant">
+                                {typeof uq.createdAt === "number" ? formatQuestionDate(uq.createdAt) : uq.createdAt}
+                              </span>
+                            </div>
+                            <p className="text-sm font-bold text-on-surface leading-snug mb-1">
+                              {uq.isAnonymous && <span className="text-purple-600 font-semibold mr-1.5">[Ẩn danh]</span>}
+                              {uq.question}
+                            </p>
+                            {uq.answer && (
+                              <div className="mt-3 bg-primary/5 border border-primary/20 rounded-xl p-3 flex gap-2.5">
+                                <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  <Icon name="support_agent" size={14} style={{ color: "white" }} filled />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-extrabold text-primary uppercase mb-1">Ban Tư vấn Học đường</p>
+                                  <p className="text-xs text-on-surface-variant leading-relaxed">{uq.answer}</p>
+                                </div>
+                              </div>
+                            )}
+                            {!uq.answer && (
+                              <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant italic mt-2">
+                                <Icon name="hourglass_empty" size={13} /> Đang được chuyên gia tiếp nhận...
+                              </div>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* MIDDLE COLUMN: Submit Question Form */}
-            
-            {/* Question Submission Card */}
-              <div className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm flex flex-col gap-4">
-                <div>
-                  <h2 className="text-base font-serif font-bold text-on-surface flex items-center gap-2">
-                    <Icon name="chat" size={20} filled style={{ color: "#0058bd" }} />
-                    Đặt câu hỏi của bạn
-                  </h2>
-                  <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                    Bạn có câu hỏi thầm kín hoặc cần lời khuyên từ chuyên gia tâm lý học đường? Hãy gửi ngay cho chúng tôi.
-                  </p>
-                </div>
+            {/* ── RIGHT Sidebar ── */}
+            <aside className="w-full lg:w-[300px] flex flex-col gap-4 flex-shrink-0 lg:sticky lg:top-[73px] self-start">
+              {/* Quick post button */}
+              <button
+                onClick={() => setShowPostForm(true)}
+                className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary font-bold text-sm py-3.5 rounded-2xl hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
+              >
+                <Icon name="edit" size={18} />
+                Đăng câu hỏi mới
+              </button>
 
-                <form onSubmit={handleSubmitQuestion} className="flex flex-col gap-3.5">
-                  {/* Category select */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-on-surface-variant">CHỦ ĐỀ</label>
-                    <div className="relative">
-                      <select
-                        value={newCategory}
-                        onChange={(e) => setNewCategory(e.target.value)}
-                        className="w-full text-xs font-semibold text-on-surface border border-outline-variant/40 rounded-xl px-3 py-3 bg-white focus:outline-none focus:border-primary appearance-none cursor-pointer"
-                      >
-                        {CATEGORIES.slice(1).map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">
-                        <Icon name="unfold_more" size={16} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Content input */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-on-surface-variant">NỘI DUNG CÂU HỎI</label>
-                    <textarea
-                      placeholder="Nhập chi tiết câu hỏi hoặc tâm sự của bạn tại đây..."
-                      rows={4}
-                      value={newQuestion}
-                      onChange={(e) => setNewQuestion(e.target.value)}
-                      className="w-full text-xs font-medium text-on-surface border border-outline-variant/40 rounded-xl p-3 focus:outline-none focus:border-primary placeholder:text-on-surface-variant/50 resize-none leading-relaxed"
-                      required
-                    />
-                  </div>
-
-                  {/* Anonymous check */}
-                  <div className="flex items-center gap-2.5 py-1">
-                    <input
-                      type="checkbox"
-                      id="anonymous-toggle"
-                      checked={isAnonymous}
-                      onChange={(e) => setIsAnonymous(e.target.checked)}
-                      className="w-4 h-4 text-primary border-outline-variant/50 rounded-sm focus:ring-primary cursor-pointer"
-                    />
-                    <label htmlFor="anonymous-toggle" className="text-xs font-bold text-on-surface select-none cursor-pointer flex items-center gap-1.5">
-                      <Icon name="visibility_off" size={16} />
-                      Hỏi ẩn danh (Chuyên gia vẫn phản hồi riêng)
-                    </label>
-                  </div>
-
-                  {submitError && (
-                    <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                      {submitError}
-                    </p>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-primary hover:bg-primary-container text-on-primary text-xs font-bold py-3 rounded-xl transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Icon name="hourglass_empty" size={16} />
-                        ĐANG GỬI...
-                      </>
-                    ) : (
-                      <>
-                        <Icon name="send" size={16} />
-                        GỬI CÂU HỎI CHO CHUYÊN GIA
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
-
-              {/* My Questions History */}
-              <div className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm flex flex-col gap-4">
-                <div>
-                  <h2 className="text-base font-serif font-bold text-on-surface flex items-center gap-2">
-                    <Icon name="history" size={20} filled style={{ color: "#0058bd" }} />
-                    Câu hỏi của tôi ({userQuestions.length})
-                  </h2>
-                  <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                    Theo dõi trạng thái xử lý và phản hồi riêng tư từ tổ tư vấn nhà trường.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-4 divide-y divide-outline-variant/20">
-                  {userQuestions.map((uq, idx) => {
-                    const statusColor =
-                      uq.status === "Đã trả lời"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : "bg-amber-50 text-amber-800 border-amber-200";
-
+              {/* Hot topics */}
+              <div className="bg-white border border-[#e8eaf0] rounded-2xl p-5 shadow-xs">
+                <h3 className="text-sm font-bold text-on-surface mb-3 flex items-center gap-2">
+                  <Icon name="local_fire_department" size={18} style={{ color: "#ef4444" }} filled />
+                  Chủ đề nổi bật
+                </h3>
+                <div className="flex flex-col gap-2.5">
+                  {[...FORUM_POSTS].sort((a, b) => b.upvotes - a.upvotes).slice(0, 4).map((p, i) => {
+                    const cc = CATEGORY_COLORS[p.category];
                     return (
-                      <div key={uq.id} className={`flex flex-col gap-3 ${idx > 0 ? "pt-4" : ""}`}>
-                        {/* Status + Metadata */}
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${statusColor}`}>
-                            {uq.status}
-                          </span>
-                          <span className="text-[10px] text-on-surface-variant font-medium">
-                            {typeof uq.createdAt === "number"
-                              ? formatQuestionDate(uq.createdAt)
-                              : uq.createdAt}
-                          </span>
+                      <button key={p.id} onClick={() => setActiveThread(p)} className="flex items-start gap-2 text-left w-full group cursor-pointer py-1">
+                        <span className="text-sm font-extrabold text-on-surface-variant/30 w-5 flex-shrink-0 pt-0.5">{i + 1}</span>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <p className="text-xs font-semibold text-on-surface leading-snug group-hover:text-primary transition-colors" style={{ display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{p.title}</p>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-bold mt-1 inline-block" style={{ backgroundColor: cc?.bg, color: cc?.text }}>{p.category}</span>
                         </div>
-
-                        {/* Question Text */}
-                        <p className="text-xs font-bold text-on-surface leading-relaxed">
-                          {uq.isAnonymous && <span className="text-purple-600 font-semibold mr-1">[Ẩn danh]</span>}
-                          {uq.question}
-                        </p>
-
-                        {/* Answer block */}
-                        {uq.answer ? (
-                          <div className="bg-surface-container-low border border-[#e8eaf0]/50 rounded-xl p-3 flex gap-2">
-                            <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Icon name="support_agent" size={14} filled />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-extrabold text-primary mb-0.5">BAN TƯ VẤN HỌC ĐƯỜNG</p>
-                              <p className="text-xs text-on-surface-variant leading-relaxed">{uq.answer}</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant italic">
-                            <Icon name="hourglass_empty" size={14} />
-                            Đang được chuyên gia tiếp nhận...
-                          </div>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               </div>
 
-            {/* RIGHT COLUMN: My Questions History */}
-            {/* The history card is already direct child now */}
+              {/* Forum rules */}
+              <div className="bg-white border border-[#e8eaf0] rounded-2xl p-5 shadow-xs">
+                <h3 className="text-sm font-bold text-on-surface mb-3 flex items-center gap-2">
+                  <Icon name="gavel" size={17} style={{ color: "#0058bd" }} />
+                  Nội quy diễn đàn
+                </h3>
+                <ul className="flex flex-col gap-2">
+                  {["Tôn trọng mọi người", "Không chia sẻ thông tin cá nhân", "Nội dung xây dựng và tích cực", "Báo cáo nội dung vi phạm"].map((rule, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-on-surface-variant">
+                      <Icon name="check" size={13} style={{ color: "#10b981" }} />
+                      {rule}
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
+              {/* Link to experts */}
+              <Link to="/student/experts" className="bg-white border border-[#e8eaf0] rounded-2xl p-5 flex flex-col gap-3 shadow-xs hover:border-primary/40 transition-all duration-200 group">
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon name="psychology" size={20} style={{ color: "#0058bd" }} filled />
+                  <p className="text-sm font-bold text-on-surface">Cần tư vấn riêng?</p>
+                </div>
+                <p className="text-xs text-on-surface-variant leading-relaxed">Trò chuyện 1-1 hoặc đặt lịch hẹn với chuyên gia tâm lý học đường.</p>
+                <div className="mt-1 bg-primary/10 group-hover:bg-primary text-primary group-hover:text-on-primary px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer">
+                  Xem chuyên gia <Icon name="arrow_forward" size={16} />
+                </div>
+              </Link>
+            </aside>
           </div>
         </main>
       </div>
+
+      {/* ── Thread Detail Modal ── */}
+      {activeThread && <ThreadModal post={activeThread} onClose={() => setActiveThread(null)} />}
+
+      {/* ── New Post Modal (Facebook Style) ── */}
+      {showPostForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-white/60 backdrop-blur-sm" style={{ animation: "fadeIn 0.2s ease" }} onClick={() => setShowPostForm(false)}>
+          <div
+            className="bg-white w-full max-w-[500px] rounded-xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/30"
+            style={{ maxHeight: "90vh", animation: "slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="relative flex items-center justify-center px-4 py-4 border-b border-outline-variant/20">
+              <h2 className="text-xl font-bold text-on-surface">Tạo bài viết</h2>
+              <button
+                onClick={() => setShowPostForm(false)}
+                className="absolute right-4 w-9 h-9 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant cursor-pointer transition-colors"
+              >
+                <Icon name="close" size={22} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto flex flex-col">
+              {/* Author Info */}
+              <div className="px-4 pt-4 pb-2 flex items-center gap-3">
+                <img
+                  src={isAnonymous ? "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=100" : (user?.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=100")}
+                  alt="Avatar"
+                  className="w-10 h-10 rounded-full object-cover border border-outline-variant/20"
+                />
+                <div>
+                  <p className="text-[15px] font-bold text-on-surface">{isAnonymous ? "Học sinh ẩn danh" : (user?.displayName || "Học sinh")}</p>
+                  <label className="inline-flex items-center gap-1 bg-surface-container px-2 py-1 rounded-md mt-0.5 cursor-pointer hover:bg-surface-container-high transition-colors">
+                    <Icon name={isAnonymous ? "visibility_off" : "public"} size={12} />
+                    <select
+                      value={isAnonymous ? "anon" : "public"}
+                      onChange={(e) => setIsAnonymous(e.target.value === "anon")}
+                      className="text-[11px] font-bold text-on-surface-variant bg-transparent outline-none cursor-pointer appearance-none"
+                    >
+                      <option value="public">Công khai</option>
+                      <option value="anon">Ẩn danh</option>
+                    </select>
+                    <Icon name="arrow_drop_down" size={14} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Inputs */}
+              <div className="px-4 flex flex-col gap-2 flex-1">
+                <input
+                  type="text"
+                  required
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Tiêu đề câu hỏi..."
+                  className="w-full text-lg font-bold text-on-surface outline-none placeholder:text-on-surface-variant/50 pt-2"
+                />
+                <textarea
+                  required
+                  value={newBody}
+                  onChange={(e) => {
+                    setNewBody(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
+                  }}
+                  placeholder="Bạn đang gặp khó khăn gì? Hãy chia sẻ nhé..."
+                  rows={4}
+                  className="w-full text-[15px] text-on-surface outline-none placeholder:text-on-surface-variant/50 resize-none leading-relaxed min-h-[120px]"
+                />
+              </div>
+
+              {submitError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mx-4 mt-2">{submitError}</p>}
+
+              {/* Add to your post */}
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between border border-outline-variant/40 rounded-xl px-4 py-3 shadow-sm">
+                  <span className="text-[15px] font-semibold text-on-surface">Chủ đề bài viết</span>
+                  <div className="relative">
+                    <select
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      className="text-sm font-bold text-primary bg-primary/10 rounded-lg px-3 py-1.5 outline-none cursor-pointer appearance-none pr-7"
+                    >
+                      {CATEGORIES.slice(1).map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                      <Icon name="arrow_drop_down" size={18} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="px-4 pb-4">
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !newTitle.trim() || !newBody.trim()}
+                  className="w-full bg-[#0866ff] text-white py-2.5 rounded-lg text-[15px] font-bold hover:bg-[#0054d1] disabled:bg-[#e4e6eb] disabled:text-[#bcc0c4] transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? <><Icon name="sync" size={18} /> Đang đăng...</> : "Đăng"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(40px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+      `}</style>
     </div>
   );
 }
