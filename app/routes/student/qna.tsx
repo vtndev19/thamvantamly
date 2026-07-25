@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, redirect } from "react-router";
 import { Sidebar } from "../../components/student/Sidebar";
 import { Icon } from "../../components/ui/Icon";
@@ -6,6 +6,12 @@ import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import "../../src/config/firebase";
 import { useAuth } from "../../src/contexts/AuthContext";
+import {
+  submitQuestion,
+  subscribeToUserQuestions,
+  formatQuestionDate,
+  type QuestionRecord,
+} from "../../src/services/qnaService";
 
 export function meta() {
   return [
@@ -84,15 +90,8 @@ const FAQ_DATA: FAQItem[] = [
   },
 ];
 
-interface UserQuestion {
-  id: string;
-  question: string;
-  category: string;
-  isAnonymous: boolean;
-  status: "Đang chờ duyệt" | "Đang xử lý" | "Đã trả lời";
-  createdAt: string;
-  answer?: string;
-}
+/** Alias của QuestionRecord từ qnaService – dùng trong component này */
+type UserQuestion = QuestionRecord;
 
 export default function StudentQnAPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -105,30 +104,25 @@ export default function StudentQnAPage() {
   const [newCategory, setNewCategory] = useState("Tâm lý");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Local state for user asked questions
-  const [userQuestions, setUserQuestions] = useState<UserQuestion[]>([
-    {
-      id: "uq-1",
-      question: "Làm sao để thương lượng ôn hòa với bạn bè khi xảy ra bất đồng quan điểm trong bài tập nhóm?",
-      category: "Học tập",
-      isAnonymous: true,
-      status: "Đã trả lời",
-      createdAt: "14:20 20/07/2026",
-      answer: "Chào bạn, khi làm việc nhóm xảy ra bất đồng, hãy lắng nghe hết ý kiến của các thành viên mà không ngắt lời. Sau đó đưa ra các luận điểm khách quan dựa trên yêu cầu đề bài thay vì cảm xúc cá nhân. Nếu không thống nhất được, hãy tham khảo ý kiến định hướng từ thầy cô giáo bộ môn nhé.",
-    },
-    {
-      id: "uq-2",
-      question: "Em cảm thấy lo lắng vô cớ vào mỗi tối Chủ Nhật trước khi đi học lại.",
-      category: "Tâm lý",
-      isAnonymous: false,
-      status: "Đang xử lý",
-      createdAt: "09:05 21/07/2026",
-    }
-  ]);
+  // Câu hỏi realtime từ Firebase
+  const [userQuestions, setUserQuestions] = useState<UserQuestion[]>([]);
 
   const { user } = useAuth();
   const userName = user?.displayName || "Học sinh";
+
+  // Lắng nghe realtime câu hỏi của user hiện tại
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribe = subscribeToUserQuestions(user.uid, (questions) => {
+      setUserQuestions(questions);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   // Filter FAQs
   const filteredFAQs = FAQ_DATA.filter((faq) => {
@@ -142,27 +136,37 @@ export default function StudentQnAPage() {
     setActiveFaqId(activeFaqId === id ? null : id);
   };
 
-  const handleSubmitQuestion = (e: React.FormEvent) => {
+  const handleSubmitQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuestion.trim()) return;
+    if (!newQuestion.trim() || isSubmitting) return;
 
-    const newQ: UserQuestion = {
-      id: `uq-${Date.now()}`,
-      question: newQuestion,
-      category: newCategory,
-      isAnonymous,
-      status: "Đang chờ duyệt",
-      createdAt: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) + " " + new Date().toLocaleDateString("vi-VN"),
-    };
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    setUserQuestions([newQ, ...userQuestions]);
-    setNewQuestion("");
-    setIsAnonymous(false);
-    setShowSuccessToast(true);
+    try {
+      await submitQuestion({
+        question: newQuestion,
+        category: newCategory,
+        isAnonymous,
+        sender: isAnonymous
+          ? null
+          : {
+            uid: user?.uid ?? null,
+            displayName: user?.displayName ?? "Học sinh",
+            email: user?.email ?? null,
+          },
+      });
 
-    setTimeout(() => {
-      setShowSuccessToast(false);
-    }, 5000);
+      setNewQuestion("");
+      setIsAnonymous(false);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 5000);
+    } catch (err) {
+      console.error("[QnA] Lỗi gửi câu hỏi:", err);
+      setSubmitError("Gửi câu hỏi thất bại. Vui lòng kiểm tra kết nối và thử lại.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -227,10 +231,10 @@ export default function StudentQnAPage() {
         {/* Body */}
         <main className="flex-1 overflow-y-auto p-5 md:p-8 animate-fade-in">
           <div className="max-w-[760px] mx-auto flex flex-col gap-8">
-            
+
             {/* LEFT COLUMN: FAQ Search & Accordion */}
             <div className="flex flex-col gap-6">
-              
+
               {/* Success Toast */}
               {showSuccessToast && (
                 <div className="flex items-start justify-between gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold p-4 rounded-2xl animate-fade-in shadow-sm">
@@ -291,11 +295,10 @@ export default function StudentQnAPage() {
                     <button
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                        isActive
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${isActive
                           ? "bg-primary text-on-primary shadow-sm"
                           : "bg-white border border-[#e8eaf0] text-on-surface-variant hover:bg-surface-container"
-                      }`}
+                        }`}
                     >
                       {cat}
                     </button>
@@ -315,9 +318,8 @@ export default function StudentQnAPage() {
                     return (
                       <div
                         key={faq.id}
-                        className={`bg-white border rounded-2xl transition-all duration-200 overflow-hidden shadow-xs ${
-                          isOpen ? "border-primary bg-primary/2" : "border-[#e8eaf0] hover:border-outline-variant/60"
-                        }`}
+                        className={`bg-white border rounded-2xl transition-all duration-200 overflow-hidden shadow-xs ${isOpen ? "border-primary bg-primary/2" : "border-[#e8eaf0] hover:border-outline-variant/60"
+                          }`}
                       >
                         {/* Question Header */}
                         <button
@@ -331,9 +333,8 @@ export default function StudentQnAPage() {
                             <span className="text-sm font-bold text-on-surface leading-snug">{faq.question}</span>
                           </div>
                           <span
-                            className={`transform transition-transform duration-200 text-on-surface-variant flex-shrink-0 ${
-                              isOpen ? "rotate-180 text-primary" : ""
-                            }`}
+                            className={`transform transition-transform duration-200 text-on-surface-variant flex-shrink-0 ${isOpen ? "rotate-180 text-primary" : ""
+                              }`}
                           >
                             <Icon name="expand_more" size={20} />
                           </span>
@@ -341,9 +342,8 @@ export default function StudentQnAPage() {
 
                         {/* Answer content */}
                         <div
-                          className={`transition-all duration-300 ease-in-out ${
-                            isOpen ? "max-h-[500px] border-t border-[#e8eaf0]/40" : "max-h-0 pointer-events-none"
-                          }`}
+                          className={`transition-all duration-300 ease-in-out ${isOpen ? "max-h-[500px] border-t border-[#e8eaf0]/40" : "max-h-0 pointer-events-none"
+                            }`}
                         >
                           <div className="px-5 py-4 text-xs md:text-sm text-on-surface-variant leading-relaxed bg-[#fafbfc]">
                             {faq.answer}
@@ -368,140 +368,156 @@ export default function StudentQnAPage() {
             </div>
 
             {/* MIDDLE COLUMN: Submit Question Form */}
-            
-            {/* Question Submission Card */}
-              <div className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm flex flex-col gap-4">
-                <div>
-                  <h2 className="text-base font-serif font-bold text-on-surface flex items-center gap-2">
-                    <Icon name="chat" size={20} filled style={{ color: "#0058bd" }} />
-                    Đặt câu hỏi của bạn
-                  </h2>
-                  <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                    Bạn có câu hỏi thầm kín hoặc cần lời khuyên từ chuyên gia tâm lý học đường? Hãy gửi ngay cho chúng tôi.
-                  </p>
-                </div>
 
-                <form onSubmit={handleSubmitQuestion} className="flex flex-col gap-3.5">
-                  {/* Category select */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-on-surface-variant">CHỦ ĐỀ</label>
-                    <div className="relative">
-                      <select
-                        value={newCategory}
-                        onChange={(e) => setNewCategory(e.target.value)}
-                        className="w-full text-xs font-semibold text-on-surface border border-outline-variant/40 rounded-xl px-3 py-3 bg-white focus:outline-none focus:border-primary appearance-none cursor-pointer"
-                      >
-                        {CATEGORIES.slice(1).map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">
-                        <Icon name="unfold_more" size={16} />
-                      </div>
+            {/* Question Submission Card */}
+            <div className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm flex flex-col gap-4">
+              <div>
+                <h2 className="text-base font-serif font-bold text-on-surface flex items-center gap-2">
+                  <Icon name="chat" size={20} filled style={{ color: "#0058bd" }} />
+                  Đặt câu hỏi của bạn
+                </h2>
+                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                  Bạn có câu hỏi thầm kín hoặc cần lời khuyên từ chuyên gia tâm lý học đường? Hãy gửi ngay cho chúng tôi.
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmitQuestion} className="flex flex-col gap-3.5">
+                {/* Category select */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-on-surface-variant">CHỦ ĐỀ</label>
+                  <div className="relative">
+                    <select
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      className="w-full text-xs font-semibold text-on-surface border border-outline-variant/40 rounded-xl px-3 py-3 bg-white focus:outline-none focus:border-primary appearance-none cursor-pointer"
+                    >
+                      {CATEGORIES.slice(1).map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">
+                      <Icon name="unfold_more" size={16} />
                     </div>
                   </div>
+                </div>
 
-                  {/* Content input */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-on-surface-variant">NỘI DUNG CÂU HỎI</label>
-                    <textarea
-                      placeholder="Nhập chi tiết câu hỏi hoặc tâm sự của bạn tại đây..."
-                      rows={4}
-                      value={newQuestion}
-                      onChange={(e) => setNewQuestion(e.target.value)}
-                      className="w-full text-xs font-medium text-on-surface border border-outline-variant/40 rounded-xl p-3 focus:outline-none focus:border-primary placeholder:text-on-surface-variant/50 resize-none leading-relaxed"
-                      required
-                    />
-                  </div>
+                {/* Content input */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-on-surface-variant">NỘI DUNG CÂU HỎI</label>
+                  <textarea
+                    placeholder="Nhập chi tiết câu hỏi hoặc tâm sự của bạn tại đây..."
+                    rows={4}
+                    value={newQuestion}
+                    onChange={(e) => setNewQuestion(e.target.value)}
+                    className="w-full text-xs font-medium text-on-surface border border-outline-variant/40 rounded-xl p-3 focus:outline-none focus:border-primary placeholder:text-on-surface-variant/50 resize-none leading-relaxed"
+                    required
+                  />
+                </div>
 
-                  {/* Anonymous check */}
-                  <div className="flex items-center gap-2.5 py-1">
-                    <input
-                      type="checkbox"
-                      id="anonymous-toggle"
-                      checked={isAnonymous}
-                      onChange={(e) => setIsAnonymous(e.target.checked)}
-                      className="w-4 h-4 text-primary border-outline-variant/50 rounded-sm focus:ring-primary cursor-pointer"
-                    />
-                    <label htmlFor="anonymous-toggle" className="text-xs font-bold text-on-surface select-none cursor-pointer flex items-center gap-1.5">
-                      <Icon name="visibility_off" size={16} />
-                      Hỏi ẩn danh (Chuyên gia vẫn phản hồi riêng)
-                    </label>
-                  </div>
+                {/* Anonymous check */}
+                <div className="flex items-center gap-2.5 py-1">
+                  <input
+                    type="checkbox"
+                    id="anonymous-toggle"
+                    checked={isAnonymous}
+                    onChange={(e) => setIsAnonymous(e.target.checked)}
+                    className="w-4 h-4 text-primary border-outline-variant/50 rounded-sm focus:ring-primary cursor-pointer"
+                  />
+                  <label htmlFor="anonymous-toggle" className="text-xs font-bold text-on-surface select-none cursor-pointer flex items-center gap-1.5">
+                    <Icon name="visibility_off" size={16} />
+                    Hỏi ẩn danh (Chuyên gia vẫn phản hồi riêng)
+                  </label>
+                </div>
 
-                  <button
-                    type="submit"
-                    className="w-full bg-primary hover:bg-primary-container text-on-primary text-xs font-bold py-3 rounded-xl transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <Icon name="send" size={16} />
-                    GỬI CÂU HỎI CHO CHUYÊN GIA
-                  </button>
-                </form>
-              </div>
-
-              {/* My Questions History */}
-              <div className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm flex flex-col gap-4">
-                <div>
-                  <h2 className="text-base font-serif font-bold text-on-surface flex items-center gap-2">
-                    <Icon name="history" size={20} filled style={{ color: "#0058bd" }} />
-                    Câu hỏi của tôi ({userQuestions.length})
-                  </h2>
-                  <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                    Theo dõi trạng thái duyệt và phản hồi riêng tư từ tổ tư vấn nhà trường.
+                {submitError && (
+                  <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                    {submitError}
                   </p>
-                </div>
+                )}
 
-                <div className="flex flex-col gap-4 divide-y divide-outline-variant/20">
-                  {userQuestions.map((uq, idx) => {
-                    const statusColor =
-                      uq.status === "Đã trả lời"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : uq.status === "Đang xử lý"
-                        ? "bg-amber-50 text-amber-800 border-amber-200"
-                        : "bg-blue-50 text-blue-800 border-blue-200";
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-primary hover:bg-primary-container text-on-primary text-xs font-bold py-3 rounded-xl transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Icon name="hourglass_empty" size={16} />
+                      ĐANG GỬI...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="send" size={16} />
+                      GỬI CÂU HỎI CHO CHUYÊN GIA
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
 
-                    return (
-                      <div key={uq.id} className={`flex flex-col gap-3 ${idx > 0 ? "pt-4" : ""}`}>
-                        {/* Status + Metadata */}
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${statusColor}`}>
-                            {uq.status}
-                          </span>
-                          <span className="text-[10px] text-on-surface-variant font-medium">
-                            {uq.createdAt}
-                          </span>
-                        </div>
-
-                        {/* Question Text */}
-                        <p className="text-xs font-bold text-on-surface leading-relaxed">
-                          {uq.isAnonymous && <span className="text-purple-600 font-semibold mr-1">[Ẩn danh]</span>}
-                          {uq.question}
-                        </p>
-
-                        {/* Answer block */}
-                        {uq.answer ? (
-                          <div className="bg-surface-container-low border border-[#e8eaf0]/50 rounded-xl p-3 flex gap-2">
-                            <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Icon name="support_agent" size={14} filled />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-extrabold text-primary mb-0.5">BAN TƯ VẤN HỌC ĐƯỜNG</p>
-                              <p className="text-xs text-on-surface-variant leading-relaxed">{uq.answer}</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant italic">
-                            <Icon name="hourglass_empty" size={14} />
-                            Đang đợi phân phối chuyên gia tư vấn...
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+            {/* My Questions History */}
+            <div className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm flex flex-col gap-4">
+              <div>
+                <h2 className="text-base font-serif font-bold text-on-surface flex items-center gap-2">
+                  <Icon name="history" size={20} filled style={{ color: "#0058bd" }} />
+                  Câu hỏi của tôi ({userQuestions.length})
+                </h2>
+                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                  Theo dõi trạng thái xử lý và phản hồi riêng tư từ tổ tư vấn nhà trường.
+                </p>
               </div>
+
+              <div className="flex flex-col gap-4 divide-y divide-outline-variant/20">
+                {userQuestions.map((uq, idx) => {
+                  const statusColor =
+                    uq.status === "Đã trả lời"
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-amber-50 text-amber-800 border-amber-200";
+
+                  return (
+                    <div key={uq.id} className={`flex flex-col gap-3 ${idx > 0 ? "pt-4" : ""}`}>
+                      {/* Status + Metadata */}
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${statusColor}`}>
+                          {uq.status}
+                        </span>
+                        <span className="text-[10px] text-on-surface-variant font-medium">
+                          {typeof uq.createdAt === "number"
+                            ? formatQuestionDate(uq.createdAt)
+                            : uq.createdAt}
+                        </span>
+                      </div>
+
+                      {/* Question Text */}
+                      <p className="text-xs font-bold text-on-surface leading-relaxed">
+                        {uq.isAnonymous && <span className="text-purple-600 font-semibold mr-1">[Ẩn danh]</span>}
+                        {uq.question}
+                      </p>
+
+                      {/* Answer block */}
+                      {uq.answer ? (
+                        <div className="bg-surface-container-low border border-[#e8eaf0]/50 rounded-xl p-3 flex gap-2">
+                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <Icon name="support_agent" size={14} filled />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-extrabold text-primary mb-0.5">BAN TƯ VẤN HỌC ĐƯỜNG</p>
+                            <p className="text-xs text-on-surface-variant leading-relaxed">{uq.answer}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant italic">
+                          <Icon name="hourglass_empty" size={14} />
+                          Đang được chuyên gia tiếp nhận...
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* RIGHT COLUMN: My Questions History */}
             {/* The history card is already direct child now */}

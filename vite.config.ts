@@ -6,5 +6,7 @@ export default defineConfig({
   plugins: [tailwindcss(), reactRouter()],
   resolve: {
     tsconfigPaths: true,
+    // Ưu tiên .ts trước .js để tránh file .js rỗng override file .ts thực
+    extensions: [".mts", ".ts", ".tsx", ".mjs", ".js", ".jsx", ".json"],
   },
 });

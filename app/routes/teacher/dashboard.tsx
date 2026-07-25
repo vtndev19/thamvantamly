@@ -219,7 +219,7 @@ export default function TeacherDashboardPage() {
               <div className="p-10 text-center text-xs text-on-surface-variant space-y-2">
                 <Icon name="verified_user" size={32} style={{ color: "#059669", margin: "0 auto" }} />
                 <p className="font-bold text-sm text-on-surface">Chưa có phản ánh bạo lực nào</p>
-                <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+                <p className="text-xs text-on-surface-variant max-w-[400px] w-full mx-auto">
                   Hiện chưa có học sinh nào thuộc trường [{teacherSchoolCode}] gửi phản ánh vụ việc.
                 </p>
               </div>

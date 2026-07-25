@@ -1,7 +1,8 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyC-ZjZO1Bt5aX5_mwgLxadCvoVOg3LyiE4",
@@ -13,13 +14,17 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-V4MENHLKPH",
 };
 
-const app = initializeApp(firebaseConfig);
+// Tránh khởi tạo lại khi HMR (hot reload)
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Auth instance dùng chung toàn app
 export const auth = getAuth(app);
 
 // Firestore instance dùng chung toàn app
 export const db = getFirestore(app);
+
+// Realtime Database instance dùng chung toàn app
+export const database = getDatabase(app);
 
 let analytics = null;
 
