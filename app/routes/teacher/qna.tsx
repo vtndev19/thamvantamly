@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, redirect } from "react-router";
-import { Sidebar } from "../../components/student/Sidebar";
+import { TeacherSidebar } from "../../components/teacher/TeacherSidebar";
 import { Icon } from "../../components/ui/Icon";
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -10,10 +10,10 @@ import { QnaCommunityBody } from "../../components/qna/QnaCommunityBody";
 
 export function meta() {
   return [
-    { title: "Hỏi đáp & Tư vấn tâm lý học sinh – SafeSchool Hub" },
+    { title: "Hỏi đáp Q&A - Giáo viên – SafeSchool Hub" },
     {
       name: "description",
-      content: "Diễn đàn trao đổi học đường, hỏi đáp tâm lý học sinh ẩn danh cùng chuyên gia, giáo viên và cộng đồng SafeSchool Hub.",
+      content: "Giải đáp thắc mắc tâm lý học đường, bạo lực học đường dành riêng cho giáo viên trên SafeSchool Hub.",
     },
     { name: "robots", content: "noindex, nofollow" },
   ];
@@ -31,25 +31,25 @@ export async function clientLoader() {
   );
 
   if (!user) {
-    throw redirect("/auth/login?redirect=/student/qna");
+    throw redirect("/auth/login?redirect=/teacher/qna");
   }
 
   const role = localStorage.getItem("userRole");
-  if (role && role !== "student" && role !== "admin") {
+  if (role && role !== "teacher" && role !== "admin") {
     throw redirect("/auth/login?error=access_denied");
   }
 
   return null;
 }
 
-export default function StudentQnAPage() {
+export default function TeacherQnAPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { user } = useAuth();
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Student Sidebar */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      {/* Teacher Sidebar */}
+      <TeacherSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       {/* Main Workspace */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
@@ -66,24 +66,24 @@ export default function StudentQnAPage() {
             </button>
 
             <Link
-              to="/student/dashboard"
-              className="flex items-center gap-2 text-primary font-serif font-extrabold text-[17px] tracking-tight select-none"
+              to="/teacher/dashboard"
+              className="flex items-center gap-2 text-[#059669] font-serif font-extrabold text-[17px] tracking-tight select-none"
             >
-              <Icon name="shield" filled size={22} />
-              An Toàn Trường Học
+              <Icon name="shield" filled size={22} style={{ color: "#059669" }} />
+              SafeSchool Hub
             </Link>
 
             <nav className="hidden md:flex items-center gap-1 ml-6" aria-label="QnA navigation">
               <Link
-                to="/student/dashboard"
+                to="/teacher/dashboard"
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
               >
                 <Icon name="home" size={18} />
                 Trang chủ
               </Link>
-              <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-on-primary shadow-sm">
+              <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[#059669] text-white shadow-sm">
                 <Icon name="help" size={18} filled />
-                Hỏi đáp & Tư vấn
+                Hỏi đáp Q&A
               </span>
             </nav>
           </div>
@@ -91,7 +91,7 @@ export default function StudentQnAPage() {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant/30 flex-shrink-0">
               <img
-                src={user?.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop"}
+                src={user?.photoURL || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=100&auto=format&fit=crop"}
                 alt="Avatar"
                 className="w-full h-full object-cover"
               />

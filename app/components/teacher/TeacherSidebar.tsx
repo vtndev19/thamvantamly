@@ -1,18 +1,71 @@
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router";
 import { Icon } from "../ui/Icon";
+import { useAuth } from "../../src/contexts/AuthContext";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { updateProfile } from "firebase/auth";
+import { db, auth } from "../../src/config/firebase";
+import { compressImageToBase64 } from "../../src/utils/imageCompress";
 
 interface TeacherSidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=100&auto=format&fit=crop";
+
 export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [profile, setProfile] = useState<{ displayName?: string; photoURL?: string } | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    async function loadTeacherProfile() {
+      try {
+        if (!user) return;
+        const docRef = doc(db, "users", user.uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          setProfile(snap.data());
+        }
+      } catch (err) {
+        console.error("Lỗi tải thông tin giáo viên:", err);
+      }
+    }
+    loadTeacherProfile();
+  }, [user]);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.uid) return;
+    try {
+      const base64 = await compressImageToBase64(file, 150, 150);
+
+      // Cập nhật Firestore
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { photoURL: base64 });
+
+      // Cập nhật Auth profile
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: base64 });
+      }
+
+      setProfile((prev) => prev ? { ...prev, photoURL: base64 } : { photoURL: base64 });
+      alert("Đã cập nhật ảnh đại diện mới! 📸");
+    } catch (err) {
+      console.error("Lỗi cập nhật ảnh đại diện giáo viên:", err);
+      alert("Lỗi tải ảnh đại diện.");
+    }
+  };
 
   const menuItems = [
     { label: "Tổng quan", path: "/teacher/dashboard", icon: "space_dashboard" },
     { label: "Lớp học", path: "/teacher/classes", icon: "class" },
     { label: "Học sinh", path: "/teacher/students", icon: "groups" },
+    { label: "Hỏi đáp Q&A", path: "/teacher/qna", icon: "help" },
     { label: "Hỗ trợ tâm lý", path: "/teacher/support", icon: "psychology" },
   ];
 
@@ -27,9 +80,12 @@ export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
         />
       )}
 
+      {/* Spacer for desktop layout to preserve space for the fixed sidebar */}
+      <div className="hidden lg:block lg:w-[240px] lg:flex-shrink-0" />
+
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[240px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-5 py-7 transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[240px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-5 py-7 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -95,24 +151,40 @@ export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
           <div className="h-px bg-outline-variant/30 w-full" />
 
           <Link
-            to="/teacher/settings"
+            to="/teacher/profile"
             onClick={onClose}
             className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all duration-200"
           >
-            <Icon name="settings" size={20} style={{ color: "currentColor" }} />
-            Cài đặt
+            <Icon name="account_circle" size={20} style={{ color: "currentColor" }} />
+            Hồ sơ cá nhân
           </Link>
 
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden flex-shrink-0 relative cursor-pointer group"
+              title="Nhấn để tải lên ảnh đại diện mới"
+            >
               <img
-                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=100&auto=format&fit=crop"
+                src={profile?.photoURL || user?.photoURL || DEFAULT_AVATAR}
                 alt="Teacher avatar"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:opacity-75 transition-opacity"
+              />
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Icon name="photo_camera" size={14} style={{ color: "white" }} />
+              </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleAvatarChange}
+                accept="image/*"
+                style={{ display: "none" }}
               />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-on-surface truncate">Trần Thị Lan</p>
+              <p className="text-sm font-semibold text-on-surface truncate">
+                {profile?.displayName || user?.displayName || "Giáo viên"}
+              </p>
               <p className="text-[10px] text-on-surface-variant truncate">Giáo viên</p>
             </div>
           </div>

@@ -139,3 +139,40 @@ export async function seedAdminAccount(): Promise<{ email: string; pass: string 
 
   return { email: adminEmail, pass: adminPass };
 }
+
+/**
+ * Tạo document bác sĩ mới trong collection `doctors`.
+ * Document path: doctors/{uid}
+ */
+export async function createDoctorRecord(
+  uid: string,
+  data: {
+    email: string | null;
+    displayName: string | null;
+    role: UserRole;
+    phone?: string;
+    photoURL?: string;
+    licenseNumber?: string;
+    hospital?: string;
+    specialization?: string;
+    proofUrl?: string;
+  }
+): Promise<void> {
+  const doctorRef = doc(db, "doctors", uid);
+  const docData: Record<string, any> = {
+    uid,
+    email: data.email,
+    displayName: data.displayName,
+    role: data.role,
+    createdAt: Date.now(),
+  };
+
+  if (data.phone) docData.phone = data.phone;
+  if (data.photoURL) docData.photoURL = data.photoURL;
+  if (data.licenseNumber) docData.licenseNumber = data.licenseNumber;
+  if (data.hospital) docData.hospital = data.hospital;
+  if (data.specialization) docData.specialization = data.specialization;
+  if (data.proofUrl) docData.proofUrl = data.proofUrl;
+
+  await setDoc(doctorRef, docData);
+}

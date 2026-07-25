@@ -13,6 +13,8 @@ import { AuthProvider } from "./src/contexts/AuthContext";
 // Ensure Firebase is initialized before any component uses it
 import "./src/config/firebase";
 import { ChatbotWidget } from "./components/student/ChatbotWidget";
+import { DoctorChatWidget } from "./components/student/DoctorChatWidget";
+import { DoctorChatBubble } from "./components/doctor/DoctorChatBubble";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -59,7 +61,12 @@ export default function App() {
   return (
     <AuthProvider>
       <Outlet />
+      {/* AI Chatbot - chỉ hiện với học sinh */}
       <ChatbotWidget />
+      {/* Chat realtime với bác sĩ - chỉ hiện với học sinh */}
+      <DoctorChatWidget />
+      {/* Chat realtime với học sinh - chỉ hiện với bác sĩ */}
+      <DoctorChatBubble />
     </AuthProvider>
   );
 }

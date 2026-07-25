@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 import { Sidebar } from "../../components/student/Sidebar";
 import { Icon } from "../../components/ui/Icon";
@@ -9,6 +9,7 @@ import { getReportsByStudentId } from "../../src/services/reportService";
 import { doc, updateDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db, auth } from "../../src/config/firebase";
+import { compressImageToBase64 } from "../../src/utils/imageCompress";
 
 export function meta() {
   return [
@@ -21,11 +22,14 @@ export function meta() {
   ];
 }
 
+const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop";
+
 export default function StudentProfilePage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* data states */
   const [profile, setProfile] = useState<any>(null);
@@ -83,6 +87,30 @@ export default function StudentProfilePage() {
       navigate("/auth/login");
     } catch (e) {
       console.error("Lỗi đăng xuất:", e);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.uid) return;
+    try {
+      setToast({ type: "success", message: "Đang tải ảnh đại diện lên..." });
+      const base64 = await compressImageToBase64(file, 160, 160);
+
+      // Cập nhật Firestore
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { photoURL: base64 });
+
+      // Cập nhật Firebase Auth
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: base64 });
+      }
+
+      setProfile((prev: any) => ({ ...prev, photoURL: base64 }));
+      setToast({ type: "success", message: "Cập nhật ảnh đại diện mới thành công! 📸" });
+    } catch (err) {
+      console.error("Lỗi cập nhật avatar:", err);
+      setToast({ type: "error", message: "Không thể xử lý và tải ảnh này lên." });
     }
   };
 
@@ -165,17 +193,31 @@ export default function StudentProfilePage() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error animate-pulse" />
             </button>
             <button
+              onClick={() => navigate("/student/profile")}
               className="w-9 h-9 rounded-full overflow-hidden border border-outline-variant/30 hover:opacity-95 transition-opacity focus:outline-none cursor-pointer flex-shrink-0"
               aria-label="Hồ sơ cá nhân"
             >
               <img
-                src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=150&auto=format&fit=crop"
+                src={profile?.photoURL || user?.photoURL || DEFAULT_AVATAR}
                 alt="Ảnh đại diện"
                 className="w-full h-full object-cover"
               />
             </button>
           </div>
         </header>
+
+        {/* Toast Notification */}
+        {toast && (
+          <div className="fixed top-20 right-6 z-50 animate-bounce">
+            <div className={`px-4 py-2.5 rounded-xl text-xs font-bold shadow-md border ${
+              toast.type === "success" 
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700" 
+                : "bg-red-50 border-red-200 text-red-700"
+            }`}>
+              {toast.message}
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-[900px] w-full mx-auto animate-fade-in space-y-6">
@@ -193,12 +235,36 @@ export default function StudentProfilePage() {
             {/* Avatar + Edit */}
             <div className="px-6 pb-6">
               <div className="flex items-end justify-between -mt-10 mb-5">
-                <div className="w-20 h-20 rounded-2xl border-4 border-white overflow-hidden shadow-md">
-                  <img
-                    src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=200&auto=format&fit=crop"
-                    alt="Avatar"
-                    className="w-full h-full object-cover"
-                  />
+                <div className="flex items-end gap-4">
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-20 h-20 rounded-2xl border-4 border-white overflow-hidden shadow-md relative cursor-pointer group flex-shrink-0"
+                    title="Nhấn để tải lên ảnh đại diện mới"
+                  >
+                    <img
+                      src={profile?.photoURL || user?.photoURL || DEFAULT_AVATAR}
+                      alt="Avatar"
+                      className="w-full h-full object-cover group-hover:opacity-75 transition-opacity"
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Icon name="photo_camera" size={18} style={{ color: "white" }} />
+                    </div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleAvatarChange}
+                      accept="image/*"
+                      style={{ display: "none" }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#0058bd] hover:text-[#1a80f8] text-[11px] font-bold rounded-xl border border-blue-200/50 transition-colors shadow-xs cursor-pointer mb-1 h-[32px]"
+                  >
+                    <Icon name="cloud_upload" size={14} />
+                    Tải ảnh từ thiết bị
+                  </button>
                 </div>
                 <button
                   id="btn-edit-profile"

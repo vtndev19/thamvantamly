@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-surface-container-low">
+    <div className="flex h-screen bg-surface-container-low overflow-hidden">
       {/* Admin Sidebar */}
       <AdminSidebar
         isOpen={isSidebarOpen}
@@ -30,7 +30,7 @@ export default function AdminDashboard() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top Header */}
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-outline-variant/20 sticky top-0 z-30">
           <div className="flex items-center gap-3">

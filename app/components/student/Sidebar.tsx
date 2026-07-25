@@ -30,9 +30,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         />
       )}
 
+      {/* Spacer for desktop layout to preserve space for the fixed sidebar */}
+      <div className="hidden lg:block lg:w-[260px] lg:flex-shrink-0" />
+
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-6 py-8 transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-6 py-8 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -107,7 +110,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             Đặt lịch ngay
           </Link>
 
-          {/* Settings & Logout Links */}
+          {/* Settings Link */}
           <div className="flex flex-col gap-1">
             <Link
               to="/student/settings"
@@ -116,14 +119,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             >
               <Icon name="settings" size={20} style={{ color: "currentColor" }} />
               Cài đặt
-            </Link>
-
-            <Link
-              to="/auth/login"
-              className="flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all duration-200"
-            >
-              <Icon name="logout" size={20} style={{ color: "currentColor" }} />
-              Đăng xuất
             </Link>
           </div>
         </div>

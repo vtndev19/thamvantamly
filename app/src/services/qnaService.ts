@@ -1,60 +1,52 @@
 /**
  * qnaService.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Dịch vụ xử lý câu hỏi Q&A học sinh ↔ Firebase Realtime Database
- *
- * Cấu trúc node trong Realtime Database:
- *
- * student_questions/
- *   {questionId}/
- *     id             : string   – ID tự sinh (push key)
- *     question       : string   – Nội dung câu hỏi
- *     category       : string   – Chủ đề (Tâm lý / Học tập / ...)
- *     isAnonymous    : boolean  – Hỏi ẩn danh hay không
- *     status         : string   – "Đang chờ duyệt" | "Đang xử lý" | "Đã trả lời"
- *     createdAt      : number   – Unix timestamp (ms)
- *     answer         : string | null  – Phản hồi từ chuyên gia
- *     answeredAt     : number | null  – Timestamp khi chuyên gia trả lời
- *     answeredBy     : string | null  – Tên / UID chuyên gia
- *     // Chỉ có khi isAnonymous = false:
- *     senderUid      : string | null
- *     senderName     : string | null
- *     senderEmail    : string | null
+ * Dịch vụ xử lý câu hỏi và bình luận Q&A học sinh ↔ Firebase Firestore
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import {
-  ref,
-  push,
-  set,
-  get,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
   query,
-  orderByChild,
-  equalTo,
-  onValue,
-  off,
-  type DataSnapshot,
-} from "firebase/database";
-import { database } from "../config/firebase";
+  where,
+  orderBy,
+  onSnapshot,
+  updateDoc,
+  increment,
+} from "firebase/firestore";
+import { db } from "../config/firebase";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Dữ liệu một câu hỏi lưu trên Realtime Database */
+/** Dữ liệu một câu hỏi (bài viết Q&A) trên Firestore */
 export interface QuestionRecord {
   id: string;
-  question: string;
+  content: string;
   category: string;
   isAnonymous: boolean;
-  status: "Đang xử lý" | "Đã trả lời";
+  senderUid: string;
+  senderName: string;
+  senderRole: string;
   createdAt: number;
-  answer: string | null;
-  answeredAt: number | null;
-  answeredBy: string | null;
-  senderUid: string | null;
-  senderName: string | null;
-  senderEmail: string | null;
+  commentCount: number;
+}
+
+/** Dữ liệu một bình luận trên Firestore */
+export interface QnaComment {
+  id: string;
+  postId: string;
+  content: string;
+  senderUid: string;
+  senderName: string;
+  senderRole: string;
+  senderPhotoURL?: string;
+  createdAt: number;
 }
 
 /** Payload gửi câu hỏi mới */
@@ -63,22 +55,21 @@ export interface SubmitQuestionPayload {
   category: string;
   isAnonymous: boolean;
   sender: {
-    uid: string | null;
+    uid: string;
     displayName: string | null;
-    email: string | null;
-  } | null;
+    role: string;
+  };
 }
 
-/** Node gốc lưu tất cả câu hỏi */
-const QUESTIONS_NODE = "student_questions";
+const QNA_COLLECTION = "qna_posts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WRITE
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Gửi một câu hỏi mới lên Realtime Database.
- * @returns ID (push key) của bản ghi vừa tạo
+ * Gửi một câu hỏi mới lên Firestore.
+ * @returns ID của bản ghi vừa tạo
  */
 export async function submitQuestion({
   question,
@@ -86,101 +77,148 @@ export async function submitQuestion({
   isAnonymous,
   sender,
 }: SubmitQuestionPayload): Promise<string> {
-  const questionsRef = ref(database, QUESTIONS_NODE);
-  const newQuestionRef = push(questionsRef);
-  const questionId = newQuestionRef.key as string;
+  const qnaRef = collection(db, QNA_COLLECTION);
+  const newDocRef = doc(qnaRef);
+  const postId = newDocRef.id;
 
-  /** Dữ liệu cơ bản – luôn ghi, bất kể ẩn danh hay không */
-  const baseData: Omit<QuestionRecord, "senderUid" | "senderName" | "senderEmail"> = {
-    id: questionId,
-    question: question.trim(),
+  const postData: QuestionRecord = {
+    id: postId,
+    content: question.trim(),
     category,
     isAnonymous,
-    status: "Đang xử lý",
+    senderUid: sender.uid,
+    senderName: isAnonymous ? "Người dùng ẩn danh" : (sender.displayName || "Học sinh"),
+    senderRole: isAnonymous ? "student" : sender.role,
     createdAt: Date.now(),
-    answer: null,
-    answeredAt: null,
-    answeredBy: null,
+    commentCount: 0,
   };
 
-  /** Chỉ đính kèm thông tin người dùng khi KHÔNG ẩn danh */
-  const senderData: Pick<QuestionRecord, "senderUid" | "senderName" | "senderEmail"> =
-    !isAnonymous && sender
-      ? {
-          senderUid: sender.uid ?? null,
-          senderName: sender.displayName ?? "Học sinh",
-          senderEmail: sender.email ?? null,
-        }
-      : {
-          senderUid: null,
-          senderName: null,
-          senderEmail: null,
-        };
+  await setDoc(newDocRef, postData);
+  return postId;
+}
 
-  await set(newQuestionRef, { ...baseData, ...senderData });
-  return questionId;
+/**
+ * Thêm bình luận giải đáp mới vào bài đăng câu hỏi.
+ */
+export async function addQnaComment(
+  postId: string,
+  data: {
+    content: string;
+    senderUid: string;
+    senderName: string;
+    senderRole: string;
+    senderPhotoURL?: string;
+  }
+): Promise<string> {
+  const commentsRef = collection(db, QNA_COLLECTION, postId, "comments");
+  const newCommentRef = doc(commentsRef);
+  const commentId = newCommentRef.id;
+
+  const commentData: QnaComment = {
+    id: commentId,
+    postId,
+    content: data.content.trim(),
+    senderUid: data.senderUid,
+    senderName: data.senderName,
+    senderRole: data.senderRole,
+    senderPhotoURL: data.senderPhotoURL || "",
+    createdAt: Date.now(),
+  };
+
+  // 1. Ghi nhận bình luận
+  await setDoc(newCommentRef, commentData);
+
+  // 2. Tăng số lượng bình luận ở bài viết gốc
+  const postRef = doc(db, QNA_COLLECTION, postId);
+  await updateDoc(postRef, {
+    commentCount: increment(1),
+  });
+
+  return commentId;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// READ (one-time)
+// READ & LISTENERS (realtime)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Lấy toàn bộ câu hỏi của một người dùng (theo UID), sắp xếp mới nhất trước.
- * Chỉ trả về câu hỏi KHÔNG ẩn danh (vì câu ẩn danh không lưu UID).
+ * Lắng nghe realtime danh sách toàn bộ câu hỏi cộng đồng.
  */
-export async function getQuestionsByUser(uid: string): Promise<QuestionRecord[]> {
-  const questionsRef = ref(database, QUESTIONS_NODE);
-  const userQuery = query(questionsRef, orderByChild("senderUid"), equalTo(uid));
+export function subscribeToAllQuestions(
+  category: string,
+  callback: (questions: QuestionRecord[]) => void
+): () => void {
+  const qnaRef = collection(db, QNA_COLLECTION);
+  let q = query(qnaRef, orderBy("createdAt", "desc"));
+  
+  if (category && category !== "Tất cả") {
+    q = query(qnaRef, where("category", "==", category), orderBy("createdAt", "desc"));
+  }
 
-  const snapshot: DataSnapshot = await get(userQuery);
-  if (!snapshot.exists()) return [];
-
-  const items: QuestionRecord[] = [];
-  snapshot.forEach((child) => {
-    items.push(child.val() as QuestionRecord);
+  return onSnapshot(q, (snapshot) => {
+    const items: QuestionRecord[] = [];
+    snapshot.forEach((doc) => {
+      items.push(doc.data() as QuestionRecord);
+    });
+    callback(items);
+  }, (err) => {
+    console.error("Lỗi realtime subscribeToAllQuestions:", err);
   });
+}
 
-  return items.sort((a, b) => b.createdAt - a.createdAt);
+/**
+ * Lắng nghe realtime câu hỏi của một user cụ thể (chỉ dành cho lịch sử cá nhân).
+ */
+export function subscribeToUserQuestions(
+  uid: string,
+  callback: (questions: QuestionRecord[]) => void
+): () => void {
+  const qnaRef = collection(db, QNA_COLLECTION);
+  const q = query(
+    qnaRef, 
+    where("senderUid", "==", uid), 
+    orderBy("createdAt", "desc")
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const items: QuestionRecord[] = [];
+    snapshot.forEach((doc) => {
+      items.push(doc.data() as QuestionRecord);
+    });
+    callback(items);
+  }, (err) => {
+    console.error("Lỗi realtime subscribeToUserQuestions:", err);
+  });
+}
+
+/**
+ * Lắng nghe realtime danh sách bình luận của một bài viết.
+ */
+export function subscribeToQnaComments(
+  postId: string,
+  callback: (comments: QnaComment[]) => void
+): () => void {
+  const commentsRef = collection(db, QNA_COLLECTION, postId, "comments");
+  const q = query(commentsRef, orderBy("createdAt", "asc"));
+
+  return onSnapshot(q, (snapshot) => {
+    const items: QnaComment[] = [];
+    snapshot.forEach((doc) => {
+      items.push(doc.data() as QnaComment);
+    });
+    callback(items);
+  }, (err) => {
+    console.error("Lỗi realtime subscribeToQnaComments:", err);
+  });
 }
 
 /**
  * Lấy một câu hỏi theo ID.
  */
 export async function getQuestionById(questionId: string): Promise<QuestionRecord | null> {
-  const snapshot = await get(ref(database, `${QUESTIONS_NODE}/${questionId}`));
-  return snapshot.exists() ? (snapshot.val() as QuestionRecord) : null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// REALTIME LISTENER
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Lắng nghe realtime câu hỏi của một user cụ thể.
- * Gọi `callback` mỗi khi có thay đổi (ví dụ chuyên gia trả lời).
- * @returns Hàm unsubscribe – gọi để tắt listener
- */
-export function subscribeToUserQuestions(
-  uid: string,
-  callback: (questions: QuestionRecord[]) => void
-): () => void {
-  const questionsRef = ref(database, QUESTIONS_NODE);
-  const userQuery = query(questionsRef, orderByChild("senderUid"), equalTo(uid));
-
-  const handler = (snapshot: DataSnapshot): void => {
-    const items: QuestionRecord[] = [];
-    if (snapshot.exists()) {
-      snapshot.forEach((child) => {
-        items.push(child.val() as QuestionRecord);
-      });
-    }
-    callback(items.sort((a, b) => b.createdAt - a.createdAt));
-  };
-
-  onValue(userQuery, handler);
-
-  return () => off(userQuery, "value", handler);
+  const docRef = doc(db, QNA_COLLECTION, questionId);
+  const snapshot = await getDoc(docRef);
+  return snapshot.exists() ? (snapshot.data() as QuestionRecord) : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -189,7 +227,6 @@ export function subscribeToUserQuestions(
 
 /**
  * Format Unix timestamp (ms) → chuỗi "HH:mm DD/MM/YYYY" tiếng Việt.
- * Ví dụ: "14:30 21/07/2026"
  */
 export function formatQuestionDate(timestamp: number): string {
   const d = new Date(timestamp);

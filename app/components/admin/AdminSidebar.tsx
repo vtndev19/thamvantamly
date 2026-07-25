@@ -28,9 +28,12 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         />
       )}
 
+      {/* Spacer for desktop layout to preserve space for the fixed sidebar */}
+      <div className="hidden lg:block lg:w-[240px] lg:flex-shrink-0" />
+
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[240px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-5 py-7 transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[240px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-5 py-7 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { TeacherSidebar } from "../../components/teacher/TeacherSidebar";
 import { Icon } from "../../components/ui/Icon";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -55,6 +56,7 @@ const URGENCY_CONFIG: Record<UrgencyLevel, { label: string; color: string; bg: s
 };
 
 export default function TeacherDashboardPage() {
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { user } = useAuth();
 
@@ -117,10 +119,10 @@ export default function TeacherDashboardPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       <TeacherSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-outline-variant/20 sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -167,9 +169,18 @@ export default function TeacherDashboardPage() {
                 <span className="font-bold text-primary">{teacherSchoolCode}</span>
               </p>
             </div>
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold px-4 py-2 rounded-2xl flex items-center gap-2">
-              <Icon name="verified" size={18} style={{ color: "#059669" }} />
-              Đã kết nối mã trường: <span className="font-mono font-bold">{teacherSchoolCode}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => navigate("/teacher/qna")}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer border-none flex items-center gap-1.5"
+              >
+                <Icon name="help" size={16} />
+                Giải đáp Q&A cộng đồng
+              </button>
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold px-4 py-2.5 rounded-2xl flex items-center gap-2">
+                <Icon name="verified" size={18} style={{ color: "#059669" }} />
+                Đã kết nối mã trường: <span className="font-mono font-bold">{teacherSchoolCode}</span>
+              </div>
             </div>
           </div>
 

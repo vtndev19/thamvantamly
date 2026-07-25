@@ -6,7 +6,11 @@ import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import "../../src/config/firebase";
+import { createPortal } from "react-dom";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { openDoctorChat } from "../../components/student/DoctorChatWidget";
+import { DoctorChatService as ChatSvc, type DoctorProfile } from "../../src/services/doctorChatService";
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,35 +38,38 @@ const MONTHS_VI = [
   "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
 ];
 
-// ─── Experts Data ─────────────────────────────────────────────────────────────
+// ─── Fallback Experts (dùng khi Firebase trống) ───────────────────────────────
 
-const EXPERTS = [
+const FALLBACK_DOCTORS: DoctorProfile[] = [
   {
-    id: "e1",
-    name: "ThS. Trần Thị Lan",
-    specialty: "Tâm lý học đường",
-    description: "Chuyên gia tư vấn các vấn đề về áp lực học tập, mối quan hệ bạn bè và bạo lực học đường.",
-    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop",
-    status: "online",
-    greeting: "Xin chào! Tôi là ThS. Trần Thị Lan, chuyên gia tâm lý học đường. Bạn có thể chia sẻ vấn đề bạn đang gặp phải, tôi luôn sẵn sàng lắng nghe và hỗ trợ bạn. 💙",
+    uid: "fallback_1",
+    displayName: "ThS. Trần Thị Lan",
+    email: null,
+    specialization: "Tâm lý học đường",
+    hospital: "Trung tâm Sức khỏe Tâm thần",
+    licenseNumber: "CCHN-001",
+    photoURL: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop",
+    role: "doctor",
   },
   {
-    id: "e2",
-    name: "TS. Nguyễn Văn Nam",
-    specialty: "Tư vấn hướng nghiệp",
-    description: "Hỗ trợ định hướng nghề nghiệp, giải tỏa căng thẳng trước các kỳ thi quan trọng.",
-    avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=200&auto=format&fit=crop",
-    status: "offline",
-    greeting: "Chào bạn! Tôi là TS. Nguyễn Văn Nam. Hiện tại tôi đang ngoại tuyến, nhưng câu hỏi của bạn sẽ được ghi lại và tôi sẽ phản hồi sớm nhất có thể. 🌟",
+    uid: "fallback_2",
+    displayName: "TS. Nguyễn Văn Nam",
+    email: null,
+    specialization: "Tư vấn hướng nghiệp",
+    hospital: "Bệnh viện Tâm thần Trung ương",
+    licenseNumber: "CCHN-002",
+    photoURL: "https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=200&auto=format&fit=crop",
+    role: "doctor",
   },
   {
-    id: "e3",
-    name: "Chuyên viên Lê Hoàng",
-    specialty: "Phát triển kỹ năng mềm",
-    description: "Đồng hành cùng học sinh trong việc rèn luyện sự tự tin, kỹ năng giao tiếp và xử lý tình huống.",
-    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=200&auto=format&fit=crop",
-    status: "online",
-    greeting: "Chào bạn! Tôi là chuyên viên Lê Hoàng. Hãy cứ tự nhiên chia sẻ nhé – không có câu hỏi nào là nhỏ cả. Tôi ở đây để đồng hành cùng bạn! 🤝",
+    uid: "fallback_3",
+    displayName: "Chuyên viên Lê Hoàng",
+    email: null,
+    specialization: "Phát triển kỹ năng mềm",
+    hospital: "Phòng tư vấn học đường THPT",
+    licenseNumber: "CCHN-003",
+    photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=200&auto=format&fit=crop",
+    role: "doctor",
   },
 ];
 
@@ -184,7 +191,7 @@ function BookingModal({
   db,
   user,
 }: {
-  expert: typeof EXPERTS[0];
+  expert: { id: string; name: string; specialty: string; description: string; avatar: string; status: string; greeting: string };
   onClose: () => void;
   db: ReturnType<typeof getFirestore>;
   user: { uid?: string; displayName?: string | null } | null;
@@ -240,92 +247,113 @@ function BookingModal({
     }
   };
 
-  const STEPS_LABELS = ["Chọn ngày", "Chọn giờ", "Chi tiết"];
+  const STEPS_LABELS = ["Chọn ngày", "Chọn giờ", "Xác nhận"];
   const stepIndex = step === "calendar" ? 0 : step === "timeslot" ? 1 : step === "details" ? 2 : 3;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-      style={{ animation: "fadeIn 0.2s ease" }}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100vw",
+        height: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+        backgroundColor: "rgba(10, 15, 29, 0.6)",
+        backdropFilter: "blur(12px)",
+        zIndex: 99999,
+        animation: "fadeIn 0.25s ease-out"
+      }}
       onClick={onClose}
     >
       <div
-        className="bg-white w-full max-w-md rounded-[28px] shadow-2xl overflow-hidden flex flex-col"
-        style={{ animation: "slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)", maxHeight: "92vh" }}
+        className="bg-white flex flex-col border border-[#e4efff] overflow-hidden"
+        style={{
+          width: "calc(100% - 32px)",
+          maxWidth: "448px",
+          height: "auto",
+          maxHeight: "90vh",
+          borderRadius: "32px",
+          boxShadow: "0 25px 60px -15px rgba(0, 88, 189, 0.3)",
+          animation: "slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <div
-          className="flex items-center gap-3 px-6 py-4 border-b border-white/20 flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #1a73e8 0%, #0058bd 100%)" }}
+          className="relative px-6 py-5 flex items-center gap-4 flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #1e40af 0%, #1d4ed8 50%, #3b82f6 100%)" }}
         >
-          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-            <Icon name="calendar_month" size={22} style={{ color: "white" }} filled />
+          <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center flex-shrink-0 shadow-inner">
+            <Icon name="calendar_month" size={20} style={{ color: "white" }} filled />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white font-bold text-sm">Đặt lịch hẹn</p>
-            <p className="text-white/70 text-[11px]">{expert.name} · {expert.specialty}</p>
+            <p className="text-white font-extrabold text-sm tracking-wide">Đăng ký Lịch Hẹn</p>
+            <p className="text-blue-100 text-[11px] font-semibold mt-0.5 truncate">{expert.name} · {expert.specialty}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors cursor-pointer flex-shrink-0"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer border-none"
           >
-            <Icon name="close" size={20} />
+            <Icon name="close" size={18} />
           </button>
         </div>
 
-        {/* ── Step Indicator (only for non-success steps) ── */}
+        {/* Step Indicator */}
         {step !== "success" && (
-          <div className="flex items-center gap-0 px-6 py-3 bg-surface-container/30 border-b border-outline-variant/20 flex-shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 bg-[#f8fafc] border-b border-[#e2e8f0] flex-shrink-0">
             {STEPS_LABELS.map((label, idx) => (
               <div key={label} className="flex items-center flex-1">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold flex-shrink-0 transition-colors ${
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold flex-shrink-0 transition-all duration-300 ${
                       idx < stepIndex
-                        ? "bg-primary text-on-primary"
+                        ? "bg-[#1d4ed8] text-white shadow-sm"
                         : idx === stepIndex
-                        ? "bg-primary text-on-primary ring-2 ring-primary/30 ring-offset-1"
-                        : "bg-outline-variant/30 text-on-surface-variant"
+                        ? "bg-[#1d4ed8] text-white ring-4 ring-blue-500/20"
+                        : "bg-gray-200 text-gray-400"
                     }`}
                   >
                     {idx < stepIndex ? <Icon name="check" size={12} /> : idx + 1}
                   </div>
-                  <span className={`text-[11px] font-semibold hidden sm:block ${idx === stepIndex ? "text-primary" : "text-on-surface-variant"}`}>
+                  <span className={`text-[11px] font-bold ${idx === stepIndex ? "text-[#1d4ed8]" : "text-gray-400"} hidden sm:inline`}>
                     {label}
                   </span>
                 </div>
                 {idx < STEPS_LABELS.length - 1 && (
-                  <div className={`flex-1 h-[2px] mx-2 rounded ${idx < stepIndex ? "bg-primary" : "bg-outline-variant/30"}`} />
+                  <div className={`flex-1 h-[2px] mx-3 rounded ${idx < stepIndex ? "bg-[#1d4ed8]" : "bg-gray-200"}`} />
                 )}
               </div>
             ))}
           </div>
         )}
 
-        {/* ── Body ── */}
+        {/* Body */}
         <div className="flex-1 overflow-y-auto">
-
-          {/* STEP 1: Calendar */}
+          {/* Step 1: Calendar */}
           {step === "calendar" && (
             <div className="p-6 flex flex-col gap-5">
               <div>
-                <h3 className="text-base font-bold text-on-surface mb-1">Chọn ngày hẹn</h3>
-                <p className="text-xs text-on-surface-variant">Nhấn vào ngày bạn muốn đặt lịch (không thể chọn ngày trong quá khứ).</p>
+                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-1">Bước 1: Chọn ngày gặp</h3>
+                <p className="text-xs text-gray-400 leading-relaxed">Chọn ngày bạn muốn tư vấn. Hệ thống chỉ hỗ trợ đặt lịch cho các ngày trong tương lai.</p>
               </div>
 
-              <div className="bg-surface-container/20 rounded-2xl p-4 border border-outline-variant/20">
+              <div className="bg-[#f8fafc] rounded-2xl p-4 border border-[#e2e8f0]">
                 <MiniCalendar selectedDate={selectedDate} onSelect={setSelectedDate} />
               </div>
 
-              {/* Selected date display */}
-              <div className={`flex items-center gap-3 rounded-2xl px-4 py-3 border transition-all ${selectedDate ? "bg-primary/5 border-primary/30" : "bg-surface-container/30 border-outline-variant/20"}`}>
-                <Icon name="event" size={20} style={{ color: selectedDate ? "#0058bd" : "#9ca3af" }} />
-                <div>
-                  <p className="text-xs font-semibold text-on-surface-variant">Ngày đã chọn</p>
-                  <p className={`text-sm font-bold ${selectedDate ? "text-primary" : "text-on-surface-variant/50"}`}>
-                    {selectedDate ? formatDateVI(selectedDate) : "Chưa chọn ngày"}
+              <div className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 border transition-all ${selectedDate ? "bg-blue-50/50 border-blue-200 text-[#1d4ed8]" : "bg-gray-50 border-gray-200 text-gray-400"}`}>
+                <Icon name="event" size={20} />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase font-bold tracking-wider opacity-80">Ngày đặt hẹn</p>
+                  <p className="text-sm font-extrabold mt-0.5">
+                    {selectedDate ? formatDateVI(selectedDate) : "Vui lòng chọn từ lịch trên"}
                   </p>
                 </div>
               </div>
@@ -334,41 +362,41 @@ function BookingModal({
                 type="button"
                 disabled={!selectedDate}
                 onClick={handleDateConfirm}
-                className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-3.5 rounded-2xl text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 bg-[#1d4ed8] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-[#1e40af] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-500/10 cursor-pointer border-none"
               >
-                Xác nhận ngày
+                Tiếp tục
                 <Icon name="arrow_forward" size={18} />
               </button>
             </div>
           )}
 
-          {/* STEP 2: Time Slot */}
+          {/* Step 2: Time Slots */}
           {step === "timeslot" && (
             <div className="p-6 flex flex-col gap-5">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setStep("calendar")}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant cursor-pointer transition-colors flex-shrink-0"
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors cursor-pointer border-none bg-none"
                 >
                   <Icon name="arrow_back" size={18} />
                 </button>
                 <div>
-                  <h3 className="text-base font-bold text-on-surface">Chọn khung giờ</h3>
-                  <p className="text-xs text-on-surface-variant">Ngày: <strong className="text-primary">{formatDateVI(selectedDate)}</strong></p>
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Bước 2: Chọn khung giờ</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Lịch tư vấn ngày {formatDateVI(selectedDate)}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2.5">
                 {TIME_SLOTS.map((slot) => (
                   <button
                     key={slot}
                     type="button"
                     onClick={() => setSelectedTime(slot)}
-                    className={`py-3 text-sm font-bold rounded-2xl border transition-all duration-150 cursor-pointer ${
+                    className={`py-3 text-sm font-extrabold rounded-2xl border transition-all duration-150 cursor-pointer ${
                       selectedTime === slot
-                        ? "bg-primary text-on-primary border-primary shadow-md scale-105"
-                        : "bg-surface-container/30 text-on-surface-variant border-outline-variant/40 hover:border-primary hover:text-primary hover:bg-primary/5"
+                        ? "bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-md scale-105"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-[#1d4ed8] hover:text-[#1d4ed8]"
                     }`}
                   >
                     {slot}
@@ -377,11 +405,11 @@ function BookingModal({
               </div>
 
               {selectedTime && (
-                <div className="flex items-center gap-3 bg-primary/5 border border-primary/30 rounded-2xl px-4 py-3">
-                  <Icon name="schedule" size={20} style={{ color: "#0058bd" }} />
+                <div className="flex items-center gap-3 bg-blue-50/50 border border-blue-200 rounded-2xl px-4 py-3.5 text-[#1d4ed8]">
+                  <Icon name="schedule" size={20} />
                   <div>
-                    <p className="text-xs font-semibold text-on-surface-variant">Giờ đã chọn</p>
-                    <p className="text-sm font-bold text-primary">{selectedTime}</p>
+                    <p className="text-[10px] uppercase font-bold tracking-wider opacity-85">Giờ tư vấn đã chọn</p>
+                    <p className="text-sm font-extrabold mt-0.5">{selectedTime}</p>
                   </div>
                 </div>
               )}
@@ -390,46 +418,46 @@ function BookingModal({
                 type="button"
                 disabled={!selectedTime}
                 onClick={handleTimeConfirm}
-                className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-3.5 rounded-2xl text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 bg-[#1d4ed8] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-[#1e40af] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-500/10 cursor-pointer border-none"
               >
-                Xác nhận giờ
+                Xác nhận giờ hẹn
                 <Icon name="arrow_forward" size={18} />
               </button>
             </div>
           )}
 
-          {/* STEP 3: Details */}
+          {/* Step 3: Details form */}
           {step === "details" && (
             <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setStep("timeslot")}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant cursor-pointer transition-colors flex-shrink-0"
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors cursor-pointer border-none bg-none"
                 >
                   <Icon name="arrow_back" size={18} />
                 </button>
                 <div>
-                  <h3 className="text-base font-bold text-on-surface">Chi tiết lịch hẹn</h3>
-                  <p className="text-xs text-on-surface-variant">{formatDateVI(selectedDate)} · {selectedTime}</p>
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Bước 3: Chi tiết yêu cầu</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{formatDateVI(selectedDate)} · {selectedTime}</p>
                 </div>
               </div>
 
               {/* Summary card */}
-              <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-2xl p-4 flex items-center gap-3">
-                <img src={expert.avatar} alt={expert.name} className="w-11 h-11 rounded-full object-cover border-2 border-primary/20" />
-                <div>
-                  <p className="text-sm font-bold text-on-surface">{expert.name}</p>
-                  <p className="text-[11px] text-primary font-semibold">{expert.specialty}</p>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5">
+              <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-2xl p-4 flex items-center gap-3.5">
+                <img src={expert.avatar} alt={expert.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-extrabold text-gray-800 truncate">{expert.name}</p>
+                  <p className="text-xs font-bold text-blue-600 truncate">{expert.specialty}</p>
+                  <p className="text-[10px] text-gray-400 font-semibold mt-0.5">
                     📅 {formatDateVI(selectedDate)} &nbsp;·&nbsp; 🕐 {selectedTime}
                   </p>
                 </div>
               </div>
 
-              {/* Reason */}
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="appt-reason" className="text-sm font-bold text-on-surface">
+              {/* Reason selection */}
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                   Lý do tư vấn <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -440,8 +468,8 @@ function BookingModal({
                       onClick={() => setReason(r)}
                       className={`py-2.5 px-3 text-xs font-bold rounded-xl border text-left transition-all cursor-pointer ${
                         reason === r
-                          ? "bg-primary text-on-primary border-primary shadow-sm"
-                          : "bg-surface-container/30 text-on-surface-variant border-outline-variant/40 hover:border-primary hover:text-primary"
+                          ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-blue-600 hover:text-blue-600"
                       }`}
                     >
                       {r}
@@ -450,58 +478,61 @@ function BookingModal({
                 </div>
               </div>
 
-              {/* Note */}
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="appt-note" className="text-sm font-bold text-on-surface">
-                  Ghi chú thêm <span className="text-[11px] text-on-surface-variant font-normal">(không bắt buộc)</span>
+              {/* Note textarea */}
+              <div className="flex flex-col gap-2">
+                <label htmlFor="appt-note" className="text-xs font-bold text-gray-500 uppercase tracking-wider flex justify-between">
+                  <span>Ghi chú thêm</span>
+                  <span className="text-[10px] font-normal text-gray-400 normal-case">(Tùy chọn)</span>
                 </label>
                 <textarea
                   id="appt-note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Mô tả ngắn gọn vấn đề bạn muốn chia sẻ..."
+                  placeholder="Chia sẻ ngắn gọn điều bạn mong muốn thảo luận..."
                   rows={3}
-                  className="w-full bg-surface-container/30 border border-outline-variant/50 rounded-2xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none"
+                  className="w-full bg-[#f8fafc] border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all resize-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isSubmitting || !reason}
-                className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-3.5 rounded-2xl text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 bg-[#1d4ed8] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-[#1e40af] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-500/15 cursor-pointer border-none"
               >
-                {isSubmitting
-                  ? <><Icon name="sync" size={18} /> Đang đặt lịch...</>
-                  : <><Icon name="event_available" size={18} /> Xác nhận đặt lịch</>}
+                {isSubmitting ? (
+                  <><Icon name="sync" size={18} className="animate-spin" /> Đang gửi yêu cầu...</>
+                ) : (
+                  <><Icon name="event_available" size={18} /> Xác nhận đặt lịch</>
+                )}
               </button>
             </form>
           )}
 
-          {/* STEP 4: Success */}
+          {/* Step 4: Success */}
           {step === "success" && (
-            <div className="flex flex-col items-center justify-center p-8 text-center gap-4 min-h-[300px]">
-              <div className="w-24 h-24 rounded-full bg-emerald-50 flex items-center justify-center mb-2" style={{ animation: "popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)" }}>
-                <Icon name="check_circle" size={52} filled style={{ color: "#10b981" }} />
+            <div className="flex flex-col items-center justify-center p-8 text-center gap-5 min-h-[320px]">
+              <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mb-2 animate-bounce">
+                <Icon name="check_circle" size={48} filled style={{ color: "#1d4ed8" }} />
               </div>
-              <h3 className="text-xl font-bold text-on-surface">Đặt lịch thành công!</h3>
-              <p className="text-sm text-on-surface-variant leading-relaxed max-w-[280px]">
-                Lịch hẹn với <strong>{expert.name}</strong> vào{" "}
-                <strong>{selectedTime}</strong> ngày{" "}
-                <strong>{formatDateVI(selectedDate)}</strong> đã được ghi nhận. Chuyên gia sẽ xác nhận sớm nhất có thể.
-              </p>
-              <div className="flex gap-3 mt-2 flex-wrap justify-center">
+              <div>
+                <h3 className="text-lg font-extrabold text-gray-800">Đặt Lịch Thành Công!</h3>
+                <p className="text-xs text-gray-400 mt-2 leading-relaxed max-w-[280px]">
+                  Yêu cầu đặt hẹn với <strong>{expert.name}</strong> vào ngày <strong>{formatDateVI(selectedDate)} ({selectedTime})</strong> đã được gửi đi. Vui lòng theo dõi trạng thái lịch hẹn.
+                </p>
+              </div>
+              <div className="flex gap-2.5 w-full mt-3">
                 <button
                   onClick={onClose}
-                  className="px-5 py-2.5 rounded-full text-sm font-bold bg-surface-container hover:bg-surface-container/80 text-on-surface transition-colors cursor-pointer border border-outline-variant/30"
+                  className="flex-1 py-3 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer border-none"
                 >
                   Đóng
                 </button>
                 <Link
                   to="/student/appointments"
-                  className="px-5 py-2.5 rounded-full text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-1.5"
+                  className="flex-1 py-3 rounded-xl text-xs font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white transition-colors flex items-center justify-center gap-1 shadow-sm"
                   onClick={onClose}
                 >
-                  <Icon name="calendar_month" size={16} />
+                  <Icon name="calendar_month" size={14} />
                   Xem lịch hẹn
                 </Link>
               </div>
@@ -512,6 +543,7 @@ function BookingModal({
     </div>
   );
 }
+
 
 // ─── Meta & Loader ────────────────────────────────────────────────────────────
 
@@ -541,69 +573,66 @@ export async function clientLoader() {
 
 export default function StudentExpertsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
 
-  // Chat state
-  const [chatExpert, setChatExpert] = useState<typeof EXPERTS[0] | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
+  // Search and Category filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Tất cả");
 
-  // Booking state
-  const [bookingExpert, setBookingExpert] = useState<typeof EXPERTS[0] | null>(null);
+  // Booking state - vẫn dùng mock expert object để tương thích BookingModal
+  const [bookingDoctor, setBookingDoctor] = useState<DoctorProfile | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Doctor info modal
+  const [viewDoctor, setViewDoctor] = useState<DoctorProfile | null>(null);
+
   const { user } = useAuth();
   const db = getFirestore(getApp());
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
-  useEffect(() => { if (chatExpert) setTimeout(() => inputRef.current?.focus(), 100); }, [chatExpert]);
+  // ── Tải danh sách bác sĩ từ Firebase ──────────────────────────────────────
+  useEffect(() => {
+    async function loadDoctors() {
+      setLoadingDoctors(true);
+      try {
+        const data = await ChatSvc.getDoctors();
+        setDoctors(data.length > 0 ? data : FALLBACK_DOCTORS);
+      } catch {
+        setDoctors(FALLBACK_DOCTORS);
+      } finally {
+        setLoadingDoctors(false);
+      }
+    }
+    loadDoctors();
+  }, []);
 
-  const handleOpenChat = (expert: typeof EXPERTS[0]) => {
-    setChatExpert(expert);
-    setInputText("");
-    setMessages([{ id: "greeting", sender: "expert", text: expert.greeting, time: getNow() }]);
-  };
+  // Tạo booking expert object từ DoctorProfile
+  const toBookingExpert = (doc: DoctorProfile) => ({
+    id: doc.uid,
+    name: doc.displayName || "Bác sĩ",
+    specialty: doc.specialization || "Chuyên gia tâm lý",
+    description: `${doc.hospital || ""}`,
+    avatar: doc.photoURL || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop",
+    status: "online" as const,
+    greeting: `Xin chào! Tôi là ${doc.displayName}. Hãy chia sẻ vấn đề của bạn.`,
+  });
 
-  const handleCloseChat = () => { setChatExpert(null); setMessages([]); setInputText(""); setIsTyping(false); };
+  const CATEGORIES = ["Tất cả", "Tâm lý học đường", "Tư vấn hướng nghiệp", "Phát triển kỹ năng mềm"];
 
-  const handleSendMessage = async () => {
-    if (!inputText.trim() || !chatExpert || isSubmitting) return;
-    const msg: Message = { id: Date.now().toString(), sender: "student", text: inputText.trim(), time: getNow() };
-    setMessages((p) => [...p, msg]);
-    const sent = inputText.trim();
-    setInputText("");
-    setIsSubmitting(true);
-    try {
-      await addDoc(collection(db, "expert_questions"), {
-        expertId: chatExpert.id, expertName: chatExpert.name,
-        studentId: user?.uid, studentName: user?.displayName || "Học sinh",
-        content: sent, status: "pending", createdAt: serverTimestamp(),
-      });
-    } catch (e) { console.error(e); }
-    setIsSubmitting(false);
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      const replies = [
-        "Cảm ơn bạn đã chia sẻ! Tôi sẽ phản hồi chi tiết sớm nhất có thể. 📝",
-        "Tôi hiểu vấn đề của bạn. Hãy để tôi xem xét và đưa ra lời khuyên phù hợp! 💙",
-        "Câu hỏi của bạn rất hay! Bạn có thể chia sẻ thêm không? 🌟",
-      ];
-      setMessages((p) => [...p, { id: Date.now() + "_r", sender: "expert", text: replies[Math.floor(Math.random() * replies.length)], time: getNow() }]);
-    }, 2000);
-  };
+  const filteredDoctors = doctors.filter((doc) => {
+    const matchesSearch =
+      (doc.displayName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.specialization || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.hospital || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
-  };
+    if (selectedCategory === "Tất cả") return matchesSearch;
+    return (doc.specialization || "").toLowerCase() === selectedCategory.toLowerCase() && matchesSearch;
+  });
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* ── Header ── */}
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-outline-variant/20 sticky top-0 z-30">
           <div className="flex items-center gap-4">
@@ -621,7 +650,7 @@ export default function StudentExpertsPage() {
               <Link to="/student/qna" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors">
                 <Icon name="forum" size={18} /> Hỏi đáp chung
               </Link>
-              <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-on-primary shadow-sm">
+              <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[#0058bd] text-white shadow-sm">
                 <Icon name="psychology" size={18} filled /> Chuyên gia tư vấn
               </span>
               <Link to="/student/appointments" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors">
@@ -637,120 +666,326 @@ export default function StudentExpertsPage() {
         </header>
 
         {/* ── Body ── */}
-        <main className="flex-1 overflow-y-auto p-5 md:p-8 animate-fade-in">
-          <div className="max-w-[1050px] mx-auto">
-            <div className="mb-8">
-              <h1 className="text-2xl md:text-3xl font-serif font-extrabold text-on-surface mb-2">Đội ngũ Chuyên gia Tư vấn</h1>
-              <p className="text-sm text-on-surface-variant">Chọn một chuyên gia phù hợp với vấn đề của bạn để nhận được lời khuyên và sự hỗ trợ tốt nhất.</p>
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-[1100px] w-full mx-auto animate-fade-in">
+          {/* Banner tương tự Dashboard */}
+          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#ebf3fe] via-[#f1f6ff] to-[#e4efff] border border-[#d3e5fe] px-8 py-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xs">
+            <div className="flex flex-col items-start text-left relative z-10 flex-1 min-w-0">
+              <span className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#0058bd]/8 text-[#0058bd] tracking-wide mb-3 inline-block whitespace-nowrap">
+                Kết nối & sẻ chia
+              </span>
+              <h2 className="text-2xl md:text-3xl font-serif font-extrabold text-[#001a41] leading-snug tracking-tight mb-2">
+                Không gian Tư vấn Chuyên nghiệp
+              </h2>
+              <p className="text-sm md:text-base text-gray-600 leading-relaxed max-w-[560px]">
+                Đội ngũ chuyên gia tâm lý học đường luôn sẵn sàng lắng nghe, hỗ trợ và đồng hành giúp bạn gỡ rối những khúc mắc trong cuộc sống và học tập.
+              </p>
+            </div>
+            <div className="w-20 h-20 md:w-28 md:h-28 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0 shadow-inner">
+              <Icon name="psychology" size={48} filled />
+            </div>
+          </section>
+
+          {/* Search & Filter section */}
+          <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-[#e8eaf0] rounded-3xl p-4 shadow-sm">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                <Icon name="search" size={20} />
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm chuyên gia theo tên, chuyên môn hoặc đơn vị..."
+                className="w-full bg-[#f8fafc] border border-[#e2e8f0] focus:border-blue-500 rounded-2xl pl-11 pr-4 py-3 text-sm text-[#1e293b] outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {EXPERTS.map((expert) => (
-                <div key={expert.id} className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col group">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="relative">
-                      <img src={expert.avatar} alt={expert.name} className="w-16 h-16 rounded-full object-cover border-2 border-surface-container group-hover:border-primary/30 transition-colors" />
-                      <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white" style={{ backgroundColor: expert.status === "online" ? "#10b981" : "#9ca3af" }} title={expert.status === "online" ? "Đang trực tuyến" : "Ngoại tuyến"} />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-on-surface">{expert.name}</h3>
-                      <p className="text-xs font-semibold text-primary">{expert.specialty}</p>
-                      <p className="text-[11px] mt-0.5" style={{ color: expert.status === "online" ? "#10b981" : "#9ca3af" }}>
-                        ● {expert.status === "online" ? "Đang trực tuyến" : "Ngoại tuyến"}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-on-surface-variant leading-relaxed flex-1 mb-6">{expert.description}</p>
-                  <div className="flex gap-2">
-                    <button
-                      id={`btn-chat-${expert.id}`}
-                      onClick={() => handleOpenChat(expert)}
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-on-primary text-sm font-bold px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer"
-                    >
-                      <Icon name="chat_bubble" size={17} /> Hỏi đáp riêng
-                    </button>
-                    <button
-                      id={`btn-book-${expert.id}`}
-                      onClick={() => setBookingExpert(expert)}
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-surface-container hover:bg-secondary/20 text-on-surface-variant hover:text-on-surface text-sm font-bold px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer border border-outline-variant/40"
-                    >
-                      <Icon name="calendar_month" size={17} /> Đặt lịch hẹn
-                    </button>
-                  </div>
-                </div>
+            {/* Category Pills */}
+            <div className="flex flex-wrap gap-1.5 overflow-x-auto pb-1 md:pb-0">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer ${
+                    selectedCategory.toLowerCase() === cat.toLowerCase()
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-[#f1f5f9] text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {cat}
+                </button>
               ))}
             </div>
+          </section>
+
+          {/* Expert List Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+                {loadingDoctors ? "Đang tải danh sách..." : `Danh sách chuyên gia (${filteredDoctors.length})`}
+              </h3>
+            </div>
+
+            {/* Loading skeleton */}
+            {loadingDoctors ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm animate-pulse">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-16 h-16 rounded-full bg-gray-200" />
+                      <div className="flex-1">
+                        <div className="h-4 bg-gray-200 rounded w-32 mb-2" />
+                        <div className="h-3 bg-gray-100 rounded w-24" />
+                      </div>
+                    </div>
+                    <div className="h-3 bg-gray-100 rounded mb-2" />
+                    <div className="h-3 bg-gray-100 rounded w-4/5 mb-6" />
+                    <div className="flex gap-2">
+                      <div className="flex-1 h-11 bg-gray-100 rounded-2xl" />
+                      <div className="flex-1 h-11 bg-gray-100 rounded-2xl" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredDoctors.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-4 bg-white border border-[#e8eaf0] rounded-3xl p-8">
+                <Icon name="person_search" size={56} style={{ color: "#cbd5e1" }} />
+                <p className="text-base font-bold text-gray-600">Không tìm thấy chuyên gia phù hợp</p>
+                <p className="text-sm text-gray-400 max-w-sm">Hãy thử thay đổi từ khóa tìm kiếm hoặc chọn danh mục khác.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredDoctors.map((doctor) => (
+                  <div key={doctor.uid} className="bg-white border border-[#e8eaf0] rounded-3xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col group hover:-translate-y-1">
+                    {/* Header */}
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#e2e8f0] group-hover:border-blue-400 transition-colors shadow-sm">
+                          {doctor.photoURL ? (
+                            <img src={doctor.photoURL} alt={doctor.displayName || ""} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-700 font-extrabold text-xl">
+                              {(doctor.displayName || "BS").split(" ").slice(-1)[0]?.[0] || "B"}
+                            </div>
+                          )}
+                        </div>
+                        {/* Online indicator */}
+                        <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-blue-400 shadow-sm" title="Đang hoạt động" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-extrabold text-[#1e293b] truncate group-hover:text-blue-800 transition-colors">
+                          {doctor.displayName}
+                        </h3>
+                        <p className="text-xs font-bold text-blue-600 mt-0.5">{doctor.specialization || "Chuyên gia tâm lý"}</p>
+                        {doctor.hospital && (
+                          <p className="text-[11px] text-gray-500 truncate mt-1 flex items-center gap-1">
+                            <span>🏥</span> {doctor.hospital}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-gray-500 leading-relaxed mb-4 line-clamp-2">
+                      Đồng hành cùng học sinh trong các vấn đề tâm lý học đường, hỗ trợ định hướng và giải quyết xung đột cuộc sống.
+                    </p>
+
+                    {/* License badge */}
+                    {doctor.licenseNumber && (
+                      <div className="flex items-center gap-1.5 mb-3 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl w-fit">
+                        <Icon name="verified" size={13} style={{ color: "#0058bd" }} filled />
+                        <span className="text-[10px] font-bold text-blue-700">Đã kiểm duyệt · {doctor.licenseNumber}</span>
+                      </div>
+                    )}
+
+                    <div className="flex-1" />
+
+                    {/* Actions */}
+                    <div className="flex gap-2 mt-2">
+                      {/* Xem thông tin */}
+                      <button
+                        id={`btn-info-${doctor.uid}`}
+                        onClick={() => setViewDoctor(doctor)}
+                        className="flex items-center justify-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-[#1e293b] text-xs font-bold px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer border border-[#e2e8f0]"
+                        title="Xem hồ sơ chuyên môn"
+                      >
+                        <Icon name="info" size={16} />
+                        Hồ sơ
+                      </button>
+                      {/* Chat với bác sĩ */}
+                      <button
+                        id={`btn-chat-${doctor.uid}`}
+                        onClick={() => openDoctorChat(doctor)}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer text-white"
+                        style={{
+                          background: "linear-gradient(135deg, #1a73e8 0%, #0058bd 100%)",
+                          boxShadow: "0 4px 12px rgba(0,88,189,0.25)",
+                        }}
+                      >
+                        <Icon name="chat_bubble" size={15} /> Chat ngay
+                      </button>
+                      {/* Đặt lịch */}
+                      <button
+                        id={`btn-book-${doctor.uid}`}
+                        onClick={() => setBookingDoctor(doctor)}
+                        className="flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold px-3.5 py-3 rounded-2xl transition-all duration-200 cursor-pointer"
+                        title="Đặt lịch tư vấn trực tiếp"
+                      >
+                        <Icon name="calendar_month" size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </main>
       </div>
 
-      {/* ──── CHAT POPUP ──── */}
-      {chatExpert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/30 backdrop-blur-sm" style={{ animation: "fadeIn 0.2s ease" }} onClick={handleCloseChat}>
-          <div className="flex flex-col bg-white rounded-[28px] shadow-2xl overflow-hidden" style={{ width: "min(480px, calc(100vw - 2rem))", height: "min(680px, calc(100vh - 4rem))", animation: "slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)" }} onClick={(e) => e.stopPropagation()}>
-            {/* Chat Header */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-outline-variant/20 flex-shrink-0" style={{ background: "linear-gradient(135deg, #0058bd 0%, #1a73e8 100%)" }}>
-              <div className="relative flex-shrink-0">
-                <img src={chatExpert.avatar} alt={chatExpert.name} className="w-11 h-11 rounded-full object-cover border-2 border-white/40" />
-                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white" style={{ backgroundColor: chatExpert.status === "online" ? "#10b981" : "#9ca3af" }} />
+      {/* ──── DOCTOR INFO MODAL ──── */}
+      {viewDoctor && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100vw",
+            height: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+            backgroundColor: "rgba(10, 15, 29, 0.6)",
+            backdropFilter: "blur(12px)",
+            zIndex: 99999,
+            animation: "fadeIn 0.25s ease-out"
+          }}
+          onClick={() => setViewDoctor(null)}
+        >
+          <div
+            className="bg-white flex flex-col border border-[#e4efff] overflow-hidden"
+            style={{
+              width: "calc(100% - 32px)",
+              maxWidth: "448px",
+              height: "auto",
+              maxHeight: "90vh",
+              borderRadius: "32px",
+              boxShadow: "0 25px 60px -15px rgba(0, 88, 189, 0.35)",
+              animation: "slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="relative flex flex-col items-center pt-12 pb-6 px-6" style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)" }}>
+              <button
+                onClick={() => setViewDoctor(null)}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer border-none"
+              >
+                <Icon name="close" size={18} />
+              </button>
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-xl mb-4 relative">
+                {viewDoctor.photoURL ? (
+                  <img src={viewDoctor.photoURL} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-white/20 flex items-center justify-center text-white font-extrabold text-3xl">
+                    {(viewDoctor.displayName || "BS").split(" ").slice(-1)[0]?.[0] || "B"}
+                  </div>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold text-sm truncate">{chatExpert.name}</p>
-                <p className="text-white/70 text-[11px]">{chatExpert.specialty}</p>
-                <p className="text-[10px] font-semibold mt-0.5" style={{ color: chatExpert.status === "online" ? "#6ee7b7" : "#d1d5db" }}>● {chatExpert.status === "online" ? "Đang trực tuyến" : "Ngoại tuyến"}</p>
-              </div>
-              <button onClick={handleCloseChat} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer flex-shrink-0"><Icon name="close" size={20} /></button>
+              <h2 className="text-white font-black text-xl text-center tracking-tight">{viewDoctor.displayName}</h2>
+              <span className="mt-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 text-blue-100 tracking-wide">
+                {viewDoctor.specialization || "Chuyên gia tư vấn"}
+              </span>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-4" style={{ background: "#f5f7fb" }}>
-              {messages.map((msg) => {
-                const isStudent = msg.sender === "student";
-                return (
-                  <div key={msg.id} className={`flex items-end gap-2.5 ${isStudent ? "flex-row-reverse" : "flex-row"}`}>
-                    {!isStudent && <img src={chatExpert.avatar} alt={chatExpert.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0 mb-1" />}
-                    <div className={`max-w-[75%] flex flex-col ${isStudent ? "items-end" : "items-start"}`}>
-                      <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${isStudent ? "bg-primary text-on-primary rounded-br-md" : "bg-white text-on-surface rounded-bl-md border border-outline-variant/20"}`} style={{ wordBreak: "break-word" }}>{msg.text}</div>
-                      <span className="text-[10px] text-on-surface-variant mt-1 px-1">{msg.time}</span>
+            {/* Doctor info fields */}
+            <div className="p-6 flex flex-col gap-4">
+              <p className="text-xs text-gray-500 leading-relaxed italic text-center px-2">
+                "Tôi luôn tin rằng mỗi học sinh đều có tiềm năng vượt qua thử thách khi có một người đồng hành tin cậy sẵn sàng lắng nghe."
+              </p>
+
+              <div className="h-[1px] bg-gray-100 w-full" />
+
+              <div className="grid grid-cols-1 gap-3">
+                {viewDoctor.hospital && (
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-blue-50/40 border border-blue-100/50">
+                    <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <Icon name="domain" size={18} className="text-blue-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Đơn vị công tác</p>
+                      <p className="text-sm font-extrabold text-gray-800 truncate">{viewDoctor.hospital}</p>
                     </div>
                   </div>
-                );
-              })}
-              {isTyping && (
-                <div className="flex items-end gap-2.5">
-                  <img src={chatExpert.avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mb-1" />
-                  <div className="bg-white border border-outline-variant/20 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm flex items-center gap-1">
-                    <span className="w-2 h-2 bg-on-surface-variant/40 rounded-full" style={{ animation: "bounce 1s infinite" }} />
-                    <span className="w-2 h-2 bg-on-surface-variant/40 rounded-full" style={{ animation: "bounce 1s infinite 0.2s" }} />
-                    <span className="w-2 h-2 bg-on-surface-variant/40 rounded-full" style={{ animation: "bounce 1s infinite 0.4s" }} />
+                )}
+                {viewDoctor.licenseNumber && (
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100">
+                      <Icon name="verified" size={16} style={{ color: "#059669" }} filled />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Chứng chỉ hành nghề</p>
+                      <p className="text-sm font-extrabold text-gray-800 truncate">Giấy phép: {viewDoctor.licenseNumber}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+                )}
+                {viewDoctor.phone && (
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
+                    <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0 border border-purple-100">
+                      <Icon name="phone" size={16} style={{ color: "#7c3aed" }} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Điện thoại</p>
+                      <p className="text-sm font-extrabold text-gray-800 truncate">{viewDoctor.phone}</p>
+                    </div>
+                  </div>
+                )}
+                {viewDoctor.email && (
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
+                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0 border border-orange-100">
+                      <Icon name="mail" size={16} style={{ color: "#ea580c" }} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Địa chỉ email</p>
+                      <p className="text-sm font-extrabold text-[#334155] truncate">{viewDoctor.email}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            {/* Input */}
-            <div className="flex-shrink-0 border-t border-outline-variant/20 bg-white px-4 py-3">
-              <div className="flex items-end gap-3 bg-surface-container/40 rounded-2xl px-4 py-2.5 border border-outline-variant/30 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30 transition-all">
-                <textarea ref={inputRef} id="chat-input" value={inputText} onChange={(e) => { setInputText(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} onKeyDown={handleKeyDown} placeholder="Nhập tin nhắn... (Enter để gửi)" rows={1} className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/60 outline-none resize-none leading-relaxed py-0.5" style={{ maxHeight: "120px" }} disabled={isSubmitting} />
-                <button id="btn-send-message" onClick={handleSendMessage} disabled={!inputText.trim() || isSubmitting} className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-sm">
-                  {isSubmitting ? <Icon name="sync" size={18} /> : <Icon name="send" size={18} />}
+              {/* Actions */}
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => { setViewDoctor(null); setBookingDoctor(viewDoctor); }}
+                  className="flex-1 py-3.5 rounded-2xl text-sm font-extrabold bg-[#f1f5f9] hover:bg-gray-200 text-gray-700 cursor-pointer border-none transition-colors"
+                >
+                  Đặt lịch hẹn
+                </button>
+                <button
+                  onClick={() => { setViewDoctor(null); openDoctorChat(viewDoctor); }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-extrabold text-white cursor-pointer border-none transition-all shadow-md shadow-blue-500/15"
+                  style={{ background: "linear-gradient(135deg, #1a73e8 0%, #0058bd 100%)" }}
+                >
+                  <Icon name="chat_bubble" size={16} /> Chat ngay
                 </button>
               </div>
-              <p className="text-[10px] text-on-surface-variant mt-2 text-center">🔒 Nội dung trò chuyện được bảo mật.</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ──── BOOKING POPUP ──── */}
-      {bookingExpert && (
+      {bookingDoctor && createPortal(
         <BookingModal
-          expert={bookingExpert}
-          onClose={() => setBookingExpert(null)}
+          expert={toBookingExpert(bookingDoctor)}
+          onClose={() => setBookingDoctor(null)}
           db={db}
           user={user}
-        />
+        />,
+        document.body
       )}
 
       <style>{`
