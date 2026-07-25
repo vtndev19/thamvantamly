@@ -656,13 +656,27 @@ export function RegisterForm() {
                 </button>
               </div>
 
-              {/* Login redirect */}
-              <p className="register-login-row">
-                Đã có tài khoản?{" "}
-                <Link to="/auth/login" className="register-login-link">
-                  Đăng nhập ngay
-                </Link>
-              </p>
+              {/* Login redirect & Doctor Registration CTA */}
+              <div className="flex flex-col gap-2.5 text-center mb-4">
+                <p className="register-login-row mb-0">
+                  Đã có tài khoản?{" "}
+                  <Link to="/auth/login" className="register-login-link">
+                    Đăng nhập ngay
+                  </Link>
+                </p>
+
+                <div className="pt-2 border-t border-outline-variant/20">
+                  <Link
+                    to="/auth/doctor-register"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition-all shadow-2xs w-full"
+                  >
+                    <span className="material-symbols-outlined text-emerald-600" style={{ fontSize: "18px" }}>
+                      health_and_safety
+                    </span>
+                    Bạn là bác sĩ tâm lý? Đăng ký tại đây 🩺
+                  </Link>
+                </div>
+              </div>
 
               {/* Footer links */}
               <div className="register-footer-links">

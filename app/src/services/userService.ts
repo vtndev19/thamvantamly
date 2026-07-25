@@ -19,17 +19,35 @@ export async function createUserProfile(
     displayName: string | null;
     role: UserRole;
     schoolCode?: string;
+    phone?: string;
+    photoURL?: string;
+    licenseNumber?: string;
+    hospital?: string;
+    specialization?: string;
+    proofUrl?: string;
   }
 ): Promise<void> {
   const userRef = doc(db, USERS_COLLECTION, uid);
-  await setDoc(userRef, {
+
+  // Build base document
+  const docData: Record<string, any> = {
     uid,
     email: data.email,
     displayName: data.displayName,
     role: data.role,
     schoolCode: data.schoolCode || "",
     createdAt: Date.now(),
-  });
+  };
+
+  // Add optional doctor-specific fields if present
+  if (data.phone) docData.phone = data.phone;
+  if (data.photoURL) docData.photoURL = data.photoURL;
+  if (data.licenseNumber) docData.licenseNumber = data.licenseNumber;
+  if (data.hospital) docData.hospital = data.hospital;
+  if (data.specialization) docData.specialization = data.specialization;
+  if (data.proofUrl) docData.proofUrl = data.proofUrl;
+
+  await setDoc(userRef, docData);
 }
 
 /**

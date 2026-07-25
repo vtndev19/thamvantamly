@@ -4,7 +4,9 @@ export default [
   // ── Public routes ──────────────────────────────────────────────────────
   index("routes/home.tsx"),
   route("auth/login", "routes/auth/login.tsx"),
+  route("auth/doctor-login", "routes/auth/doctor-login.tsx"),
   route("auth/register", "routes/auth/register.tsx"),
+  route("auth/doctor-register", "routes/auth/doctor-register.tsx"),
   route("unauthorized", "routes/unauthorized.tsx"),
 
   // ── Admin routes ───────────────────────────────────────────────────────
