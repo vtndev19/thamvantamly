@@ -12,6 +12,7 @@ import "./app.css";
 import { AuthProvider } from "./src/contexts/AuthContext";
 // Ensure Firebase is initialized before any component uses it
 import "./src/config/firebase";
+import { ChatbotWidget } from "./components/student/ChatbotWidget";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -58,6 +59,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Outlet />
+      <ChatbotWidget />
     </AuthProvider>
   );
 }
