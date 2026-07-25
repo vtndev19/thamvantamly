@@ -6,6 +6,7 @@ import {
   getTeacherNotifications,
   getReportsBySchoolCode,
   updateReportStatus,
+  updateReportResolution,
   type TeacherNotification,
   type IncidentReport,
   type UrgencyLevel,
@@ -64,7 +65,22 @@ export default function TeacherDashboardPage() {
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // States for report resolution modal
+  const [feedbackText, setFeedbackText] = useState("");
+  const [modalStatus, setModalStatus] = useState<"pending" | "processing" | "resolved">("pending");
+
   const teacherSchoolCode = user?.schoolCode || "THPT001";
+
+  // Sync modal inputs with currently selected report
+  useEffect(() => {
+    if (selectedReport) {
+      setFeedbackText(selectedReport.resolutionNotes || "");
+      setModalStatus(selectedReport.status);
+    } else {
+      setFeedbackText("");
+      setModalStatus("pending");
+    }
+  }, [selectedReport]);
 
   async function loadTeacherData() {
     if (!user) return;
@@ -88,6 +104,51 @@ export default function TeacherDashboardPage() {
   useEffect(() => {
     loadTeacherData();
   }, [user]);
+
+  async function handleSaveResolution(
+    reportId: string,
+    newStatus: "pending" | "processing" | "resolved",
+    notes: string
+  ) {
+    try {
+      setUpdatingId(reportId);
+      const resolverName = user?.displayName || "Giáo viên phụ trách";
+      await updateReportResolution(reportId, newStatus, notes, resolverName);
+
+      // Cập nhật state danh sách reports
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id === reportId
+            ? {
+                ...r,
+                status: newStatus,
+                resolutionNotes: notes,
+                resolvedBy: resolverName,
+                resolvedAt: Date.now(),
+              }
+            : r
+        )
+      );
+
+      // Cập nhật selected report để modal hiển thị đúng
+      if (selectedReport && selectedReport.id === reportId) {
+        setSelectedReport({
+          ...selectedReport,
+          status: newStatus,
+          resolutionNotes: notes,
+          resolvedBy: resolverName,
+          resolvedAt: Date.now(),
+        });
+      }
+
+      alert("Lưu thông tin xử lý & phản hồi thành công!");
+    } catch (err) {
+      console.error("Lỗi khi lưu phản hồi:", err);
+      alert("Đã xảy ra lỗi khi lưu thông tin xử lý. Vui lòng thử lại.");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
 
   async function handleStatusChange(
     reportId: string,
@@ -117,10 +178,10 @@ export default function TeacherDashboardPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       <TeacherSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-outline-variant/20 sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -155,7 +216,7 @@ export default function TeacherDashboardPage() {
         </header>
 
         {/* Main */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-[1100px] w-full mx-auto animate-fade-in">
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 w-full animate-fade-in">
           {/* Greeting */}
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
@@ -496,39 +557,91 @@ export default function TeacherDashboardPage() {
                 </div>
               </div>
 
-              {/* Status Change Buttons inside Modal */}
-              <div className="pt-3 border-t border-outline-variant/20">
-                <p className="font-bold text-xs text-on-surface mb-2">Cập nhật trạng thái xử lý vụ việc này:</p>
-                <div className="grid grid-cols-3 gap-2">
+               {/* Resolution History if resolved before */}
+              {(selectedReport.resolvedBy || selectedReport.resolutionNotes) && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-4 space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-xs">
+                    <Icon name="check_circle" size={16} style={{ color: "#059669" }} />
+                    Lịch sử xử lý gần nhất:
+                  </div>
+                  {selectedReport.resolutionNotes && (
+                    <p className="text-xs text-emerald-800 italic bg-white/60 p-2.5 rounded-lg border border-emerald-100">
+                      "{selectedReport.resolutionNotes}"
+                    </p>
+                  )}
+                  <div className="flex justify-between text-[10px] text-emerald-700 font-semibold">
+                    <span>Cán bộ xử lý: {selectedReport.resolvedBy || "Giáo viên"}</span>
+                    {selectedReport.resolvedAt && (
+                      <span>Thời gian: {new Date(selectedReport.resolvedAt).toLocaleString("vi-VN")}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Status & Feedback Edit Form */}
+              <div className="pt-4 border-t border-outline-variant/20 space-y-3.5">
+                <h4 className="font-extrabold text-xs text-on-surface uppercase tracking-wide text-[#0058bd] flex items-center gap-1">
+                  <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>published_with_changes</span>
+                  Cập nhật tiến trình & Phản hồi phản ánh
+                </h4>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1.5">
+                    1. Thay đổi trạng thái vụ việc:
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["pending", "processing", "resolved"] as const).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setModalStatus(st)}
+                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border text-center ${
+                          modalStatus === st
+                            ? st === "pending"
+                              ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                              : st === "processing"
+                              ? "bg-blue-600 text-white border-blue-700 shadow-xs"
+                              : "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                            : "bg-surface-container-low text-on-surface border-outline-variant/30 hover:bg-surface-container"
+                        }`}
+                      >
+                        {STATUS_CONFIG[st].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1.5">
+                    2. Ý kiến xử lý & Hướng dẫn học sinh (Phản hồi từ Nhà trường):
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Hãy nhập lời khuyên, hướng giải quyết hoặc chỉ đạo xử lý vụ việc này để học sinh nhận được phản hồi nhanh nhất..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 text-xs focus:outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] transition-all resize-none bg-surface-container/20 text-on-surface placeholder:text-on-surface-variant/50"
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                  />
+                </div>
+
+                <div className="pt-1 flex justify-end">
                   <button
-                    onClick={() => handleStatusChange(selectedReport.id, "pending")}
-                    className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                      selectedReport.status === "pending"
-                        ? "bg-amber-500 text-white border-amber-600 shadow-sm"
-                        : "bg-surface-container-low text-on-surface border-outline-variant/30 hover:bg-surface-container"
-                    }`}
+                    type="button"
+                    onClick={() => handleSaveResolution(selectedReport.id, modalStatus, feedbackText)}
+                    disabled={updatingId === selectedReport.id}
+                    className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/95 transition-all shadow-xs cursor-pointer disabled:opacity-50"
                   >
-                    Chờ xử lý
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(selectedReport.id, "processing")}
-                    className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                      selectedReport.status === "processing"
-                        ? "bg-blue-600 text-white border-blue-700 shadow-sm"
-                        : "bg-surface-container-low text-on-surface border-outline-variant/30 hover:bg-surface-container"
-                    }`}
-                  >
-                    Đang xử lý
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(selectedReport.id, "resolved")}
-                    className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                      selectedReport.status === "resolved"
-                        ? "bg-emerald-600 text-white border-emerald-700 shadow-sm"
-                        : "bg-surface-container-low text-on-surface border-outline-variant/30 hover:bg-surface-container"
-                    }`}
-                  >
-                    Đã giải quyết
+                    {updatingId === selectedReport.id ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Đang lưu...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="save" size={16} />
+                        Lưu Cập Nhật & Phản Hồi
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

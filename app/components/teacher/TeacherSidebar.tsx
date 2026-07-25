@@ -1,5 +1,6 @@
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { Icon } from "../ui/Icon";
+import { useAuth } from "../../src/contexts/AuthContext";
 
 interface TeacherSidebarProps {
   isOpen: boolean;
@@ -8,6 +9,18 @@ interface TeacherSidebarProps {
 
 export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  async function handleLogout() {
+    try {
+      await logout();
+      localStorage.removeItem("userRole");
+      navigate("/auth/login");
+    } catch (err) {
+      console.error("Lỗi đăng xuất:", err);
+    }
+  }
 
   const menuItems = [
     { label: "Tổng quan", path: "/teacher/dashboard", icon: "space_dashboard" },
@@ -103,17 +116,27 @@ export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
             Cài đặt
           </Link>
 
-          <div className="flex items-center gap-3 px-3 py-2">
+          {/* Prominent Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 bg-red-50/30 hover:bg-red-100/70 hover:text-red-700 text-[13px] font-bold transition-all w-full cursor-pointer shadow-xs"
+          >
+            <Icon name="logout" size={18} />
+            Đăng xuất tài khoản
+          </button>
+
+          {/* Profile Card */}
+          <div className="flex items-center gap-3 px-3 py-1">
             <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden flex-shrink-0">
               <img
-                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=100&auto=format&fit=crop"
+                src={user?.photoURL || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=100&auto=format&fit=crop"}
                 alt="Teacher avatar"
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-on-surface truncate">Trần Thị Lan</p>
-              <p className="text-[10px] text-on-surface-variant truncate">Giáo viên</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-on-surface truncate">{user?.displayName || "Giáo viên"}</p>
+              <p className="text-[10px] text-on-surface-variant truncate">Giáo viên (Mã: {user?.schoolCode || "THPT001"})</p>
             </div>
           </div>
         </div>

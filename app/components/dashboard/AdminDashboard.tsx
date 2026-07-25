@@ -59,12 +59,14 @@ export function AdminDashboard() {
   const roleBadgeClass: Record<UserRole, string> = {
     student: "role-pill role-pill--student",
     teacher: "role-pill role-pill--teacher",
+    doctor: "role-pill role-pill--teacher bg-blue-50 text-blue-700 border-blue-200",
     admin: "role-pill role-pill--admin",
   };
 
   const roleLabel: Record<UserRole, string> = {
     student: "Học sinh",
     teacher: "Giáo viên",
+    doctor: "Bác sĩ",
     admin: "Admin",
   };
 

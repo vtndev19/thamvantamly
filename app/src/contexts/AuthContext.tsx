@@ -53,12 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (profile) {
             setUser({
+              ...profile,
               uid: fbUser.uid,
-              email: fbUser.email,
-              displayName: fbUser.displayName,
-              role: profile.role,
-              schoolCode: profile.schoolCode,
-              createdAt: profile.createdAt,
+              email: fbUser.email || profile.email,
+              displayName: fbUser.displayName || profile.displayName,
+              photoURL: fbUser.photoURL || profile.photoURL || undefined,
             });
           } else {
             // Không tìm thấy profile → mặc định role student
@@ -66,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uid: fbUser.uid,
               email: fbUser.email,
               displayName: fbUser.displayName,
+              photoURL: fbUser.photoURL || undefined,
               role: "student" as UserRole,
               createdAt: Date.now(),
             });

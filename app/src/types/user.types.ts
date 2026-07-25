@@ -1,7 +1,7 @@
 /**
  * Các vai trò người dùng trong hệ thống SafeSchool Hub
  */
-export type UserRole = "student" | "teacher" | "admin";
+export type UserRole = "student" | "teacher" | "doctor" | "admin";
 
 /**
  * Thông tin người dùng trong ứng dụng (đọc từ Firestore)
@@ -12,6 +12,12 @@ export interface AppUser {
   displayName: string | null;
   role: UserRole;
   schoolCode?: string;
+  phone?: string;
+  photoURL?: string;
+  licenseNumber?: string;
+  hospital?: string;
+  specialization?: string;
+  proofUrl?: string;
   createdAt: number; // Unix timestamp (ms)
 }
 
@@ -24,6 +30,12 @@ export interface UserProfile {
   displayName: string | null;
   role: UserRole;
   schoolCode?: string;
+  phone?: string;
+  photoURL?: string;
+  licenseNumber?: string;
+  hospital?: string;
+  specialization?: string;
+  proofUrl?: string;
   createdAt: number;
 }
 
@@ -45,6 +57,12 @@ export const ROLE_CONFIG: Record<
     icon: "person_4",
     color: "#059669",
     dashboardPath: "/teacher/dashboard",
+  },
+  doctor: {
+    label: "Bác sĩ tâm lý",
+    icon: "health_and_safety",
+    color: "#0058bd",
+    dashboardPath: "/doctor/dashboard",
   },
   admin: {
     label: "Quản trị viên",

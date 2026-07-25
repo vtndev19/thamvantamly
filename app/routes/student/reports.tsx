@@ -385,6 +385,31 @@ export default function StudentReportsPage() {
                 </p>
               </div>
 
+              {/* Feedback / Resolution Notes from Teacher */}
+              {(selectedReport.resolutionNotes || selectedReport.resolvedBy) && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-4 space-y-1.5 mt-3">
+                  <div className="flex items-center gap-1.5 font-bold text-xs">
+                    <Icon name="verified" size={16} style={{ color: "#059669" }} />
+                    Phản hồi từ Ban giám hiệu / Giáo viên:
+                  </div>
+                  {selectedReport.resolutionNotes ? (
+                    <p className="text-xs text-emerald-800 leading-relaxed bg-white/60 p-2.5 rounded-lg border border-emerald-100 whitespace-pre-line">
+                      {selectedReport.resolutionNotes}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-emerald-700 italic">
+                      Giáo viên đã tiếp nhận thông tin vụ việc và đang xử lý.
+                    </p>
+                  )}
+                  <div className="flex justify-between text-[10px] text-emerald-700 font-semibold pt-1 border-t border-emerald-100/50">
+                    <span>Người xử lý: {selectedReport.resolvedBy || "Giáo viên phụ trách"}</span>
+                    {selectedReport.resolvedAt && (
+                      <span>Thời gian: {new Date(selectedReport.resolvedAt).toLocaleString("vi-VN")}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-outline-variant/20 text-[11px]">
                 <div>
                   <span className="font-semibold">Mã trường THPT:</span> {selectedReport.schoolCode}

@@ -29,6 +29,9 @@ export interface IncidentReportInput {
 export interface IncidentReport extends IncidentReportInput {
   id: string;
   status: "pending" | "processing" | "resolved";
+  resolutionNotes?: string;
+  resolvedBy?: string;
+  resolvedAt?: number;
   createdAt: number;
 }
 
@@ -200,4 +203,28 @@ export async function updateReportStatus(
   if (!reportId) return;
   const reportRef = doc(db, REPORTS_COLLECTION, reportId);
   await updateDoc(reportRef, { status });
+}
+
+/**
+ * Cập nhật chi tiết xử lý phản ánh bao gồm trạng thái, phản hồi và giáo viên phụ trách
+ */
+export async function updateReportResolution(
+  reportId: string,
+  status: "pending" | "processing" | "resolved",
+  notes?: string,
+  resolvedBy?: string
+): Promise<void> {
+  if (!reportId) return;
+  const reportRef = doc(db, REPORTS_COLLECTION, reportId);
+  const updateData: Record<string, any> = { status };
+  
+  if (notes !== undefined) {
+    updateData.resolutionNotes = notes.trim();
+  }
+  if (resolvedBy !== undefined) {
+    updateData.resolvedBy = resolvedBy.trim();
+  }
+  updateData.resolvedAt = Date.now();
+  
+  await updateDoc(reportRef, updateData);
 }
