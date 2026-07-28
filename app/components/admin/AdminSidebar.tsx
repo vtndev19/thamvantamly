@@ -13,6 +13,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     { label: "Dashboard", path: "/admin/dashboard", icon: "space_dashboard" },
     { label: "Users", path: "/admin/users", icon: "group" },
     { label: "Content", path: "/admin/content", icon: "description" },
+    { label: "News & Announcements", path: "/admin/news", icon: "newspaper" },
     { label: "Reports", path: "/admin/reports", icon: "flag" },
     { label: "Activity Log", path: "/admin/activity", icon: "history" },
   ];

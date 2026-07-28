@@ -44,7 +44,8 @@ export function ChatbotWidget() {
   const shouldHide =
     !user ||
     user.role !== "student" ||
-    !location.pathname.startsWith("/student");
+    !location.pathname.startsWith("/student") ||
+    location.pathname === "/student/chat";
 
   const userId = user?.uid || "";
   const userName = user?.displayName || user?.email?.split("@")[0] || "Học sinh";

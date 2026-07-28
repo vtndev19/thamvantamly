@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   signInWithEmailAndPassword,
@@ -7,7 +7,7 @@ import {
   type AuthError,
 } from "firebase/auth";
 import { auth } from "../../src/config/firebase";
-import { getUserProfile, createUserProfile, seedAdminAccount } from "../../src/services/userService";
+import { getUserProfile, createUserProfile, seedAdminAccount, seedTestAccounts } from "../../src/services/userService";
 import { ROLE_CONFIG } from "../../src/types/user.types";
 
 const LOGO_URL =
@@ -52,6 +52,9 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    seedTestAccounts();
+  }, []);
 
   // ── Submit handler ─────────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
