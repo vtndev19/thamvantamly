@@ -1,10 +1,63 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router";
+import { useState, useEffect, useRef } from "react";
+import { Link, useNavigate, redirect } from "react-router";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { getUserProfile } from "../../src/services/userService";
 import { Icon } from "../../components/ui/Icon";
 import { DoctorSidebar } from "../../components/doctor/DoctorSidebar";
 import type { UserProfile } from "../../src/types/user.types";
+
+import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+import "../../src/config/firebase";
+
+export async function clientLoader() {
+  const authInstance = getAuth(getApp());
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = authInstance.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  if (!user) {
+    throw redirect("/auth/login?redirect=/doctor/dashboard");
+  }
+
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "doctor" && role !== "admin") {
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
+}
+
+
+interface Appointment {
+  id: string;
+  expertId: string;
+  expertName: string;
+  expertSpecialty: string;
+  expertAvatar: string;
+  studentId: string;
+  studentName: string;
+  date: string;
+  time: string;
+  reason: string;
+  note: string;
+  status: "pending" | "confirmed" | "cancelled" | "done";
+  createdAt: any;
+}
 
 export function meta() {
   return [
@@ -25,6 +78,12 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [activeTab, setActiveTab] = useState<"pending" | "confirmed" | "all">("pending");
+  const [apptToast, setApptToast] = useState<{ id: string; studentName: string; date: string; time: string } | null>(null);
+  const db = getFirestore(getApp());
+  const prevPendingRef = useRef<string[]>([]);
+
   useEffect(() => {
     async function loadProfile() {
       if (user) {
@@ -42,6 +101,88 @@ export default function DoctorDashboard() {
     }
     loadProfile();
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    // Lắng nghe real-time từ Firestore
+    const q = query(
+      collection(db, "appointments"),
+      where("expertId", "==", user.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Appointment[];
+      
+      // Sắp xếp giảm dần theo thời gian tạo
+      list.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+      
+      setAppointments(list);
+    }, (error) => {
+      console.error("Lỗi lắng nghe lịch hẹn:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, db]);
+
+  useEffect(() => {
+    if (appointments.length === 0) return;
+
+    const pendingIds = appointments
+      .filter((a) => a.status === "pending")
+      .map((a) => a.id);
+
+    const isInitialLoad = prevPendingRef.current.length === 0 && appointments.length > 0;
+    
+    if (!isInitialLoad) {
+      const newPendings = pendingIds.filter((id) => !prevPendingRef.current.includes(id));
+      if (newPendings.length > 0) {
+        const newAppt = appointments.find((a) => a.id === newPendings[0]);
+        if (newAppt) {
+          setApptToast({
+            id: newAppt.id,
+            studentName: newAppt.studentName,
+            date: newAppt.date,
+            time: newAppt.time,
+          });
+          // Phát âm thanh
+          try {
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav");
+            audio.volume = 0.4;
+            audio.play().catch(() => {});
+          } catch {}
+        }
+      }
+    }
+    
+    prevPendingRef.current = pendingIds;
+  }, [appointments]);
+
+  useEffect(() => {
+    if (apptToast) {
+      const timer = setTimeout(() => setApptToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [apptToast]);
+
+  const handleUpdateStatus = async (id: string, newStatus: "confirmed" | "cancelled") => {
+    try {
+      const apptRef = doc(db, "appointments", id);
+      await updateDoc(apptRef, { status: newStatus });
+      if (apptToast?.id === id) {
+        setApptToast(null);
+      }
+    } catch (err) {
+      console.error("Lỗi cập nhật trạng thái lịch hẹn:", err);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -67,10 +208,14 @@ export default function DoctorDashboard() {
   const specialization = profile?.specialization || "Chuyên gia tâm lý học đường";
   const hospital = profile?.hospital || "Bệnh viện đối tác";
 
+  const pendingCount = appointments.filter((a) => a.status === "pending").length;
+  const confirmedCount = appointments.filter((a) => a.status === "confirmed").length;
+  const doneCount = appointments.filter((a) => a.status === "done").length;
+
   const stats = [
-    { label: "Ca tư vấn đã xử lý", value: "24", icon: "forum", color: "#0058bd", bg: "#e8f0fe" },
-    { label: "Lịch hẹn hôm nay", value: "3", icon: "calendar_month", color: "#059669", bg: "#d1fae5" },
-    { label: "Câu hỏi chờ trả lời", value: "6", icon: "contact_support", color: "#994100", bg: "#fff2e8" },
+    { label: "Ca tư vấn đã xử lý", value: String(24 + doneCount), icon: "forum", color: "#0058bd", bg: "#e8f0fe" },
+    { label: "Lịch hẹn chờ duyệt", value: String(pendingCount), icon: "calendar_month", color: "#059669", bg: "#d1fae5" },
+    { label: "Lịch hẹn đã duyệt", value: String(confirmedCount), icon: "event_available", color: "#10b981", bg: "#ecfdf5" },
     { label: "Đánh giá chuyên môn", value: "4.9/5", icon: "star", color: "#eab308", bg: "#fef9c3" },
   ];
 
@@ -198,36 +343,108 @@ export default function DoctorDashboard() {
               </div>
             </div>
 
-            {/* Right: Quick Doctor Checklist */}
+            {/* Right: Quick Appointments Manager */}
             <div className="bg-white rounded-3xl p-6 border border-outline-variant/30 shadow-2xs flex flex-col gap-4">
-              <h3 className="font-serif font-bold text-base text-on-surface flex items-center gap-2 border-b border-outline-variant/20 pb-3">
-                <span className="material-symbols-outlined text-[#059669]">task_alt</span>
-                Lịch biểu hôm nay
+              <h3 className="font-serif font-bold text-base text-on-surface flex items-center gap-2 border-b border-outline-variant/20 pb-1">
+                <span className="material-symbols-outlined text-[#059669]">calendar_month</span>
+                Lịch hẹn tư vấn
               </h3>
 
-              <div className="flex flex-col gap-3">
+              {/* Tabs */}
+              <div className="flex gap-1.5 bg-gray-50 p-1 rounded-xl border border-gray-100">
                 {[
-                  { title: "Kiểm duyệt hồ sơ ca tư vấn", done: true },
-                  { title: "Tham vấn trực tuyến (14:00 - Học sinh ẩn danh)", done: false },
-                  { title: "Phản hồi thắc mắc Q&A mới", done: false },
-                  { title: "Cập nhật chuyên mục bài viết tâm lý", done: false },
-                ].map((t, idx) => (
-                  <div key={idx} className="flex items-start gap-3 p-3 rounded-xl border border-outline-variant/10 bg-surface-container/30">
-                    <span className={`material-symbols-outlined mt-0.5 ${t.done ? "text-emerald-600" : "text-outline-variant"}`} style={{ fontSize: "18px" }}>
-                      {t.done ? "check_box" : "check_box_outline_blank"}
-                    </span>
-                    <span className={`text-xs font-semibold leading-normal ${t.done ? "line-through text-on-surface-variant/60" : "text-on-surface"}`}>
-                      {t.title}
-                    </span>
-                  </div>
+                  { key: "pending", label: `Chờ duyệt (${pendingCount})` },
+                  { key: "confirmed", label: `Đã duyệt (${confirmedCount})` },
+                  { key: "all", label: "Tất cả" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key as any)}
+                    className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      activeTab === tab.key
+                        ? "bg-white text-primary shadow-xs border border-gray-100"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
               </div>
 
-              <div className="mt-4 pt-4 border-t border-outline-variant/30 text-center">
-                <Link to="/student/appointments" className="text-xs text-primary font-bold hover:underline inline-flex items-center gap-1 justify-center w-full">
-                  <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>calendar_today</span>
-                  Xem chi tiết lịch hẹn của bạn
-                </Link>
+              <div className="flex flex-col gap-3 max-h-[360px] overflow-y-auto pr-1">
+                {appointments.filter(a => activeTab === "all" ? true : a.status === activeTab).length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 flex flex-col items-center gap-2">
+                    <Icon name="event_busy" size={32} style={{ color: "#cbd5e1" }} />
+                    <span className="text-xs font-semibold">Không có lịch hẹn nào</span>
+                  </div>
+                ) : (
+                  appointments
+                    .filter(a => activeTab === "all" ? true : a.status === activeTab)
+                    .map((appt) => {
+                      const formattedDate = appt.date ? appt.date.split("-").reverse().join("/") : "";
+                      return (
+                        <div
+                          key={appt.id}
+                          className="p-3.5 rounded-2xl border border-outline-variant/20 bg-surface-container/20 flex flex-col gap-2 transition-all hover:bg-surface-container/30"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-gray-800 truncate">
+                                👤 {appt.studentName}
+                              </p>
+                              <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                                📅 {formattedDate} &nbsp;·&nbsp; 🕐 {appt.time}
+                              </p>
+                            </div>
+                            <span
+                              className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border uppercase ${
+                                appt.status === "pending"
+                                  ? "bg-amber-50 text-amber-600 border-amber-200"
+                                  : appt.status === "confirmed"
+                                  ? "bg-blue-50 text-blue-600 border-blue-200"
+                                  : appt.status === "cancelled"
+                                  ? "bg-red-50 text-red-600 border-red-200"
+                                  : "bg-emerald-50 text-emerald-600 border-emerald-200"
+                              }`}
+                            >
+                              {appt.status === "pending"
+                                ? "Chờ duyệt"
+                                : appt.status === "confirmed"
+                                ? "Đã duyệt"
+                                : appt.status === "cancelled"
+                                ? "Đã hủy"
+                                : "Đã xong"}
+                            </span>
+                          </div>
+                          
+                          {appt.reason && (
+                            <p className="text-[11px] text-gray-600 font-medium bg-gray-50 px-2 py-1 rounded-lg border border-gray-100/50">
+                              <span className="font-semibold text-gray-700">Lý do:</span> {appt.reason}
+                            </p>
+                          )}
+
+                          {appt.status === "pending" && (
+                            <div className="flex gap-2 mt-1">
+                              <button
+                                onClick={() => handleUpdateStatus(appt.id, "confirmed")}
+                                className="flex-1 flex items-center justify-center gap-1 bg-[#059669] hover:bg-[#047857] text-white text-[10px] font-extrabold py-2 px-2.5 rounded-xl cursor-pointer border-none shadow-xs transition-colors"
+                              >
+                                <Icon name="check" size={12} />
+                                Duyệt
+                              </button>
+                              <button
+                                onClick={() => handleUpdateStatus(appt.id, "cancelled")}
+                                className="flex-1 flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-extrabold py-2 px-2.5 rounded-xl cursor-pointer border border-red-200 transition-colors"
+                              >
+                                <Icon name="close" size={12} />
+                                Từ chối
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
               </div>
             </div>
 
@@ -236,6 +453,89 @@ export default function DoctorDashboard() {
         </main>
       </div>
 
+      {/* ── NOTIFICATION TOAST ── */}
+      {apptToast && (
+        <div
+          onClick={() => {
+            setActiveTab("pending");
+            setApptToast(null);
+          }}
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 99999,
+            background: "rgba(255, 255, 255, 0.98)",
+            backdropFilter: "blur(12px)",
+            border: "1.5px solid #0058bd",
+            borderRadius: 24,
+            padding: "16px 20px",
+            width: 340,
+            boxShadow: "0 20px 48px rgba(0, 88, 189, 0.25), 0 4px 16px rgba(0, 0, 0, 0.08)",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            cursor: "pointer",
+            animation: "slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            transition: "all 0.2s",
+          }}
+        >
+          {/* Icon */}
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              background: "rgba(0, 88, 189, 0.08)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Icon name="notification_important" size={22} className="text-primary" filled />
+          </div>
+          
+          {/* Content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#1e293b" }}>
+              Lịch Hẹn Mới Trực Tuyến!
+            </p>
+            <p style={{ margin: "3px 0 0 0", fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>
+              Học sinh <strong>{apptToast.studentName}</strong> vừa đăng ký lịch hẹn vào lúc {apptToast.time} ngày {apptToast.date.split("-").reverse().join("/")}.
+            </p>
+          </div>
+          
+          {/* Close button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setApptToast(null);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#94a3b8",
+              padding: 4,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              alignSelf: "flex-start",
+            }}
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideIn {
+          from { transform: translateY(100px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }

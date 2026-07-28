@@ -31,6 +31,9 @@ export interface DoctorProfile {
   proofUrl?: string;
   role: string;
   createdAt?: number;
+  bio?: string;
+  experience?: string;
+  achievements?: string;
 }
 
 export type SenderRole = "student" | "doctor";

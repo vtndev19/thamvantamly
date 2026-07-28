@@ -6,7 +6,8 @@ import {
   type ReactNode,
 } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { auth } from "../config/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "../config/firebase";
 import { getUserProfile } from "../services/userService";
 import type { AppUser, UserRole } from "../types/user.types";
 
@@ -43,25 +44,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    let unsubProfile: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
 
-      if (fbUser) {
-        try {
-          // Đọc profile từ Firestore để lấy role
-          const profile = await getUserProfile(fbUser.uid);
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
 
-          if (profile) {
-            setUser({
-              uid: fbUser.uid,
-              email: fbUser.email,
-              displayName: fbUser.displayName,
-              role: profile.role,
-              schoolCode: profile.schoolCode,
-              createdAt: profile.createdAt,
-            });
-          } else {
-            // Không tìm thấy profile → mặc định role student
+      if (fbUser) {
+        setLoading(true);
+        // Lắng nghe realtime thay đổi profile của user trong Firestore
+        const userDocRef = doc(db, "users", fbUser.uid);
+        unsubProfile = onSnapshot(
+          userDocRef,
+          (docSnap) => {
+            if (docSnap.exists()) {
+              const profile = docSnap.data();
+              setUser({
+                uid: fbUser.uid,
+                email: fbUser.email,
+                displayName: fbUser.displayName || profile.displayName || "",
+                role: profile.role,
+                schoolCode: profile.schoolCode,
+                createdAt: profile.createdAt,
+              });
+            } else {
+              // Phục vụ fallback tạm thời khi vừa auth thành công nhưng chưa kịp lưu profile Firestore
+              setUser({
+                uid: fbUser.uid,
+                email: fbUser.email,
+                displayName: fbUser.displayName,
+                role: "student" as UserRole,
+                createdAt: Date.now(),
+              });
+            }
+            setLoading(false);
+          },
+          (error) => {
+            console.error("Lỗi lắng nghe user profile:", error);
             setUser({
               uid: fbUser.uid,
               email: fbUser.email,
@@ -69,31 +92,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               role: "student" as UserRole,
               createdAt: Date.now(),
             });
+            setLoading(false);
           }
-        } catch {
-          // Lỗi đọc Firestore → vẫn set user nhưng không có role
-          setUser({
-            uid: fbUser.uid,
-            email: fbUser.email,
-            displayName: fbUser.displayName,
-            role: "student" as UserRole,
-            createdAt: Date.now(),
-          });
-        }
+        );
       } else {
         setUser(null);
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   async function logout() {
     await signOut(auth);
     setUser(null);
     setFirebaseUser(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("userRole");
+    }
   }
 
   return (

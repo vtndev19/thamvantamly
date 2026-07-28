@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, redirect } from "react-router";
 import { TeacherSidebar } from "../../components/teacher/TeacherSidebar";
 import { Icon } from "../../components/ui/Icon";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -8,6 +8,32 @@ import { doc, updateDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db, auth } from "../../src/config/firebase";
 import { compressImageToBase64 } from "../../src/utils/imageCompress";
+import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+
+export async function clientLoader() {
+  const authInstance = getAuth(getApp());
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = authInstance.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  if (!user) {
+    throw redirect("/auth/login?redirect=/teacher/profile");
+  }
+
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "teacher" && role !== "admin") {
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
+}
+
 
 export function meta() {
   return [

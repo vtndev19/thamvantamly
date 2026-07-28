@@ -40,9 +40,11 @@ export function ChatbotWidget() {
   const location = useLocation();
   const { user } = useAuth();
 
-  // Exclude chatbot display on homepage (/), login (/auth/login), and register (/auth/register)
-  const excludedPaths = ["/", "/auth/login", "/auth/register"];
-  const shouldHide = !user || excludedPaths.includes(location.pathname);
+  // Only display chatbot on student dashboard routes
+  const shouldHide =
+    !user ||
+    user.role !== "student" ||
+    !location.pathname.startsWith("/student");
 
   const userId = user?.uid || "";
   const userName = user?.displayName || user?.email?.split("@")[0] || "Học sinh";
@@ -52,8 +54,22 @@ export function ChatbotWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
+  const [hasUnread, setHasUnread] = useState(() => {
+    if (typeof window !== "undefined") {
+      return !sessionStorage.getItem("chatbot_opened");
+    }
+    return true;
+  });
   const [showAttentionPopup, setShowAttentionPopup] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasUnread(false);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("chatbot_opened", "true");
+      }
+    }
+  }, [isOpen]);
 
   /* data */
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -196,13 +212,13 @@ export function ChatbotWidget() {
         aria-label="Chat với Bác sĩ Tâm lý AI"
         style={{
           position: "fixed",
-          bottom: 92,
-          right: 20,
+          bottom: 20,
+          right: 92,
           zIndex: 50,
           width: W,
           maxWidth: "calc(100vw - 2.5rem)",
           height: H,
-          maxHeight: "calc(100vh - 7.5rem)",
+          maxHeight: "calc(100vh - 3.5rem)",
           ...S.col,
           borderRadius: 24,
           overflow: "hidden",
@@ -900,17 +916,17 @@ export function ChatbotWidget() {
       </div>
 
       {/* ========== FLOATING ACTION BUTTON ========== */}
-      <div style={{ position: "fixed", bottom: 18, right: 20, zIndex: 50 }}>
+      <div style={{ position: "fixed", bottom: 20, right: 24, zIndex: 50 }}>
         {showAttentionPopup && !isOpen && (
           <div
             style={{
               position: "absolute",
-              bottom: "calc(100% + 14px)",
-              right: 0,
+              bottom: 8,
+              right: "calc(100% + 14px)",
               background: "linear-gradient(135deg, #0072ff 0%, #003d94 100%)",
               color: "white",
               padding: "10px 14px",
-              borderRadius: "18px 18px 4px 18px",
+              borderRadius: "18px 4px 18px 18px",
               boxShadow: "0 12px 36px rgba(0,88,189,0.35)",
               animation: "attentionFloat 3s ease-in-out infinite",
               display: "flex",
@@ -953,13 +969,14 @@ export function ChatbotWidget() {
             <div
               style={{
                 position: "absolute",
-                top: "100%",
-                right: 20,
+                top: "50%",
+                left: "100%",
+                transform: "translateY(-50%)",
                 width: 0,
                 height: 0,
-                borderLeft: "6px solid transparent",
-                borderRight: "6px solid transparent",
-                borderTop: "6px solid #003d94"
+                borderTop: "6px solid transparent",
+                borderBottom: "6px solid transparent",
+                borderLeft: "6px solid #003d94"
               }}
             />
           </div>

@@ -196,3 +196,18 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Ẩn thanh cuộn cho toàn bộ modal */
+[class*="modal"]::-webkit-scrollbar,
+[class*="modal"] *::-webkit-scrollbar,
+[class*="Modal"]::-webkit-scrollbar,
+[class*="Modal"] *::-webkit-scrollbar {
+  display: none !important;
+}
+[class*="modal"],
+[class*="modal"] *,
+[class*="Modal"],
+[class*="Modal"] * {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}

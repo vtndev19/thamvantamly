@@ -1,10 +1,38 @@
 import { useState } from "react";
+import { redirect } from "react-router";
 import { AdminSidebar } from "../../components/admin/AdminSidebar";
 import { StatsGrid } from "../../components/admin/StatsCard";
 import { TrendChart, GradeDistribution } from "../../components/admin/AdminCharts";
 import { RecentAlerts } from "../../components/admin/RecentAlerts";
 import { Icon } from "../../components/ui/Icon";
 import type { Route } from "./+types/dashboard";
+import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import "../../src/config/firebase";
+
+export async function clientLoader() {
+  const authInstance = getAuth(getApp());
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = authInstance.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  if (!user) {
+    throw redirect("/auth/login?redirect=/admin/dashboard");
+  }
+
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "admin") {
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
+}
+
 
 export function meta({}: Route.MetaArgs) {
   return [

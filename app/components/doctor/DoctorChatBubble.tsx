@@ -24,11 +24,11 @@ export function DoctorChatBubble() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const excludedPaths = ["/", "/auth/login", "/auth/register", "/auth/doctor-register"];
+  // Only display DoctorChatBubble on doctor dashboard routes
   const shouldHide =
     !user ||
     user.role !== "doctor" ||
-    excludedPaths.some((p) => location.pathname.startsWith(p));
+    !location.pathname.startsWith("/doctor");
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);

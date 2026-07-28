@@ -146,15 +146,15 @@ export function DoctorSidebar({ isOpen, onClose }: DoctorSidebarProps) {
             </Link>
 
             <Link
-              to="/student/appointments"
+              to="/doctor/appointments"
               onClick={onClose}
               className={`flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                location.pathname === "/student/appointments"
+                location.pathname === "/doctor/appointments"
                   ? "bg-primary text-on-primary shadow-md"
                   : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
               }`}
             >
-              <Icon name="calendar_today" size={20} filled={location.pathname === "/student/appointments"} />
+              <Icon name="calendar_today" size={20} filled={location.pathname === "/doctor/appointments"} />
               Lịch hẹn tư vấn
             </Link>
           </nav>

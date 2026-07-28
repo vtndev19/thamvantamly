@@ -335,7 +335,7 @@ function BookingModal({
         )}
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
           {/* Step 1: Calendar */}
           {step === "calendar" && (
             <div className="p-6 flex flex-col gap-5">
@@ -585,6 +585,7 @@ export default function StudentExpertsPage() {
 
   // Doctor info modal
   const [viewDoctor, setViewDoctor] = useState<DoctorProfile | null>(null);
+  const [modalTab, setModalTab] = useState<"info" | "experience">("info");
 
   const { user } = useAuth();
   const db = getFirestore(getApp());
@@ -805,7 +806,7 @@ export default function StudentExpertsPage() {
                       {/* Xem thông tin */}
                       <button
                         id={`btn-info-${doctor.uid}`}
-                        onClick={() => setViewDoctor(doctor)}
+                        onClick={() => { setViewDoctor(doctor); setModalTab("info"); }}
                         className="flex items-center justify-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-[#1e293b] text-xs font-bold px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer border border-[#e2e8f0]"
                         title="Xem hồ sơ chuyên môn"
                       >
@@ -868,7 +869,7 @@ export default function StudentExpertsPage() {
             className="bg-white flex flex-col border border-[#e4efff] overflow-hidden"
             style={{
               width: "calc(100% - 32px)",
-              maxWidth: "448px",
+              maxWidth: "520px",
               height: "auto",
               maxHeight: "90vh",
               borderRadius: "32px",
@@ -885,7 +886,7 @@ export default function StudentExpertsPage() {
               >
                 <Icon name="close" size={18} />
               </button>
-              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-xl mb-4 relative">
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-xl mb-3 relative">
                 {viewDoctor.photoURL ? (
                   <img src={viewDoctor.photoURL} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -894,81 +895,135 @@ export default function StudentExpertsPage() {
                   </div>
                 )}
               </div>
+              
               <h2 className="text-white font-black text-xl text-center tracking-tight">{viewDoctor.displayName}</h2>
-              <span className="mt-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 text-blue-100 tracking-wide">
+              
+              <span className="mt-1 px-3 py-1 rounded-full text-[10px] font-bold bg-white/10 text-blue-100 tracking-wide uppercase">
                 {viewDoctor.specialization || "Chuyên gia tư vấn"}
               </span>
+
+              {/* Star Rating Section */}
+              <div className="flex items-center gap-1 bg-amber-500/20 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[11px] font-black text-amber-200 mt-3 select-none">
+                <Icon name="star" size={14} className="text-amber-400" filled />
+                <span>4.9 / 5.0 (18 đánh giá chuyên môn)</span>
+              </div>
             </div>
 
-            {/* Doctor info fields */}
-            <div className="p-6 flex flex-col gap-4">
-              <p className="text-xs text-gray-500 leading-relaxed italic text-center px-2">
-                "Tôi luôn tin rằng mỗi học sinh đều có tiềm năng vượt qua thử thách khi có một người đồng hành tin cậy sẵn sàng lắng nghe."
-              </p>
+            {/* Tab Switched Header */}
+            <div className="flex border-b border-gray-100 px-6 bg-gray-50/50">
+              {[
+                { id: "info", label: "Giới thiệu & Liên hệ" },
+                { id: "experience", label: "Kinh nghiệm & Bằng cấp" }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setModalTab(tab.id as any)}
+                  className={`flex-1 py-3.5 text-xs font-bold border-b-2 text-center transition-all cursor-pointer ${
+                    modalTab === tab.id
+                      ? "border-blue-600 text-blue-600 font-extrabold"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-              <div className="h-[1px] bg-gray-100 w-full" />
+            {/* Doctor info content (Scrollable if height exceeds) */}
+            <div className="p-6 overflow-y-auto max-h-[420px] flex flex-col gap-4 no-scrollbar">
+              {modalTab === "info" ? (
+                <>
+                  <p className="text-xs text-gray-500 leading-relaxed italic text-center px-4 bg-[#f8fafc] py-3 rounded-2xl border border-gray-100">
+                    "{viewDoctor.bio || "Tôi luôn tin rằng mỗi học sinh đều có tiềm năng vượt qua thử thách khi có một người đồng hành tin cậy sẵn sàng lắng nghe."}"
+                  </p>
 
-              <div className="grid grid-cols-1 gap-3">
-                {viewDoctor.hospital && (
-                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-blue-50/40 border border-blue-100/50">
-                    <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <Icon name="domain" size={18} className="text-blue-700" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Đơn vị công tác</p>
-                      <p className="text-sm font-extrabold text-gray-800 truncate">{viewDoctor.hospital}</p>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {viewDoctor.hospital && (
+                      <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-blue-50/40 border border-blue-100/50">
+                        <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <Icon name="domain" size={16} className="text-blue-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Đơn vị công tác</p>
+                          <p className="text-xs font-extrabold text-gray-800 truncate">{viewDoctor.hospital}</p>
+                        </div>
+                      </div>
+                    )}
+                    {viewDoctor.licenseNumber && (
+                      <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100">
+                          <Icon name="verified" size={15} style={{ color: "#059669" }} filled />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Chứng chỉ hành nghề</p>
+                          <p className="text-xs font-extrabold text-gray-800 truncate">{viewDoctor.licenseNumber}</p>
+                        </div>
+                      </div>
+                    )}
+                    {viewDoctor.phone && (
+                      <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0 border border-purple-100">
+                          <Icon name="phone" size={15} style={{ color: "#7c3aed" }} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Số điện thoại</p>
+                          <p className="text-xs font-extrabold text-gray-800 truncate">{viewDoctor.phone}</p>
+                        </div>
+                      </div>
+                    )}
+                    {viewDoctor.email && (
+                      <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
+                        <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0 border border-orange-100">
+                          <Icon name="mail" size={15} style={{ color: "#ea580c" }} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Hòm thư điện tử</p>
+                          <p className="text-xs font-extrabold text-[#334155] truncate">{viewDoctor.email}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  {/* Experience */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-gray-700 flex items-center gap-2 uppercase tracking-wider">
+                      <Icon name="medical_services" size={15} className="text-blue-600" />
+                      Kinh nghiệm lâm sàng & làm việc
+                    </h4>
+                    <div className="text-xs text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50/50 p-4 rounded-2xl border border-gray-100/70 min-h-[90px]">
+                      {viewDoctor.experience || "Chuyên gia chưa cập nhật thông tin về kinh nghiệm làm việc."}
                     </div>
                   </div>
-                )}
-                {viewDoctor.licenseNumber && (
-                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100">
-                      <Icon name="verified" size={16} style={{ color: "#059669" }} filled />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Chứng chỉ hành nghề</p>
-                      <p className="text-sm font-extrabold text-gray-800 truncate">Giấy phép: {viewDoctor.licenseNumber}</p>
-                    </div>
-                  </div>
-                )}
-                {viewDoctor.phone && (
-                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
-                    <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0 border border-purple-100">
-                      <Icon name="phone" size={16} style={{ color: "#7c3aed" }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Điện thoại</p>
-                      <p className="text-sm font-extrabold text-gray-800 truncate">{viewDoctor.phone}</p>
-                    </div>
-                  </div>
-                )}
-                {viewDoctor.email && (
-                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#f8fafc] border border-gray-200/60">
-                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0 border border-orange-100">
-                      <Icon name="mail" size={16} style={{ color: "#ea580c" }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Địa chỉ email</p>
-                      <p className="text-sm font-extrabold text-[#334155] truncate">{viewDoctor.email}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 mt-4">
+                  {/* Achievements */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-gray-700 flex items-center gap-2 uppercase tracking-wider">
+                      <Icon name="school" size={15} className="text-blue-600" />
+                      Học vấn & Thành tích nổi bật
+                    </h4>
+                    <div className="text-xs text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50/50 p-4 rounded-2xl border border-gray-100/70 min-h-[90px]">
+                      {viewDoctor.achievements || "Chuyên gia chưa cập nhật thông tin về học vấn, thành tích."}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions footer */}
+              <div className="flex gap-3 mt-2 border-t border-gray-100 pt-4 flex-shrink-0">
                 <button
                   onClick={() => { setViewDoctor(null); setBookingDoctor(viewDoctor); }}
-                  className="flex-1 py-3.5 rounded-2xl text-sm font-extrabold bg-[#f1f5f9] hover:bg-gray-200 text-gray-700 cursor-pointer border-none transition-colors"
+                  className="flex-1 py-3.5 rounded-2xl text-xs font-extrabold bg-[#f1f5f9] hover:bg-gray-200 text-gray-700 cursor-pointer border-none transition-colors"
                 >
                   Đặt lịch hẹn
                 </button>
                 <button
                   onClick={() => { setViewDoctor(null); openDoctorChat(viewDoctor); }}
-                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-extrabold text-white cursor-pointer border-none transition-all shadow-md shadow-blue-500/15"
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-xs font-extrabold text-white cursor-pointer border-none transition-all shadow-md shadow-blue-500/15"
                   style={{ background: "linear-gradient(135deg, #1a73e8 0%, #0058bd 100%)" }}
                 >
-                  <Icon name="chat_bubble" size={16} /> Chat ngay
+                  <Icon name="chat_bubble" size={15} /> Chat ngay
                 </button>
               </div>
             </div>

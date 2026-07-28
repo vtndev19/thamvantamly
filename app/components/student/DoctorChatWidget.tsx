@@ -46,12 +46,11 @@ export function DoctorChatWidget() {
   const location = useLocation();
   const { user } = useAuth();
 
-  const excludedPaths = ["/auth/login", "/auth/register", "/auth/doctor-register"];
   // shouldHide: ẩn UI nhưng KHÔNG unregister _openChatWith - hook vẫn chạy bình thường
   const shouldHideUI =
     !user ||
     user.role !== "student" ||
-    excludedPaths.some((p) => location.pathname === p);
+    !location.pathname.startsWith("/student");
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
@@ -161,6 +160,13 @@ export function DoctorChatWidget() {
       DoctorChatService.markAsRead(activeChatId, "student");
     }
   }, [isOpen, activeChatId]);
+
+  // ── Auto show chat list if no active doctor is selected ────────────────────
+  useEffect(() => {
+    if (isOpen && !activeDoctor) {
+      setShowChatList(true);
+    }
+  }, [isOpen, activeDoctor]);
 
   // ── Notification Toast logic for new messages ──────────────────────────────
   const prevUnreadRef = useRef<Record<string, number>>({});
@@ -284,13 +290,13 @@ export function DoctorChatWidget() {
       <div
         style={{
           position: "fixed",
-          bottom: 96,
-          right: 96, // offset từ chatbot widget
+          bottom: 20,
+          right: 92,
           zIndex: 50,
           width: W,
           maxWidth: "calc(100vw - 2.5rem)",
           height: H,
-          maxHeight: "calc(100vh - 8rem)",
+          maxHeight: "calc(100vh - 3.5rem)",
           ...S.col,
           borderRadius: 24,
           overflow: "hidden",
@@ -946,11 +952,11 @@ export function DoctorChatWidget() {
         title="Chat với Bác sĩ tâm lý"
         style={{
           position: "fixed",
-          bottom: 20,
-          right: 96, // offset từ chatbot
+          bottom: 88,
+          right: 24,
           zIndex: 50,
-          width: 52,
-          height: 52,
+          width: 56,
+          height: 56,
           borderRadius: "50%",
           border: "none",
           cursor: "pointer",
@@ -976,7 +982,7 @@ export function DoctorChatWidget() {
             "0 6px 24px rgba(5,150,105,0.45),0 2px 8px rgba(0,0,0,0.15)";
         }}
       >
-        <Icon name={isOpen ? "close" : "health_and_safety"} size={22} filled />
+        <Icon name={isOpen ? "close" : "forum"} size={26} filled />
 
         {/* Unread badge */}
         {totalUnread > 0 && !isOpen && (
@@ -1013,7 +1019,7 @@ export function DoctorChatWidget() {
           }}
           style={{
             position: "fixed",
-            bottom: 84,
+            bottom: 156,
             right: 24,
             zIndex: 99999,
             background: "rgba(255, 255, 255, 0.95)",

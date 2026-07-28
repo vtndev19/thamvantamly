@@ -38,4 +38,5 @@ export default [
   route("doctor/qna", "routes/doctor/qna.tsx"),
   route("doctor/chat", "routes/doctor/chat.tsx"),
   route("doctor/profile", "routes/doctor/profile.tsx"),
+  route("doctor/appointments", "routes/doctor/appointments.tsx"),
 ] satisfies RouteConfig;

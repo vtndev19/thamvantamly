@@ -5,6 +5,33 @@ import { useAuth } from "../../src/contexts/AuthContext";
 import { DoctorSidebar } from "../../components/doctor/DoctorSidebar";
 import { Icon } from "../../components/ui/Icon";
 import { compressImageToBase64 } from "../../src/utils/imageCompress";
+import { getAuth } from "firebase/auth";
+import { redirect } from "react-router";
+import "../../src/config/firebase";
+
+export async function clientLoader() {
+  const authInstance = getAuth(getApp());
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = authInstance.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  if (!user) {
+    throw redirect("/auth/login?redirect=/doctor/profile");
+  }
+
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "doctor" && role !== "admin") {
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
+}
+
 
 export function meta() {
   return [
@@ -24,6 +51,8 @@ interface DoctorProfileData {
   email: string;
   photoURL: string;
   bio: string;
+  experience?: string;
+  achievements?: string;
 }
 
 const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=250&auto=format&fit=crop";
@@ -49,6 +78,8 @@ export default function DoctorProfilePage() {
   const [formEmail, setFormEmail] = useState("");
   const [formPhoto, setFormPhoto] = useState("");
   const [formBio, setFormBio] = useState("");
+  const [formExperience, setFormExperience] = useState("");
+  const [formAchievements, setFormAchievements] = useState("");
 
   useEffect(() => {
     async function loadDoctorProfile() {
@@ -68,6 +99,8 @@ export default function DoctorProfilePage() {
             email: data.email || user.email || "",
             photoURL: data.photoURL || user.photoURL || DEFAULT_AVATAR,
             bio: data.bio || "",
+            experience: data.experience || "",
+            achievements: data.achievements || "",
           };
           setProfile(loadedData);
           resetForm(loadedData);
@@ -83,6 +116,8 @@ export default function DoctorProfilePage() {
             email: user.email || "",
             photoURL: user.photoURL || DEFAULT_AVATAR,
             bio: "Chưa có lời giới thiệu bản thân.",
+            experience: "",
+            achievements: "",
           };
           setProfile(defaultData);
           resetForm(defaultData);
@@ -105,6 +140,8 @@ export default function DoctorProfilePage() {
     setFormEmail(data.email);
     setFormPhoto(data.photoURL);
     setFormBio(data.bio);
+    setFormExperience(data.experience || "");
+    setFormAchievements(data.achievements || "");
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,6 +182,8 @@ export default function DoctorProfilePage() {
       email: formEmail.trim(),
       photoURL: formPhoto.trim() || DEFAULT_AVATAR,
       bio: formBio.trim() || "Chưa có lời giới thiệu bản thân.",
+      experience: formExperience.trim(),
+      achievements: formAchievements.trim(),
     };
 
     try {
@@ -262,27 +301,27 @@ export default function DoctorProfilePage() {
                   Tải ảnh từ thiết bị
                 </button>
                 
-                <h2 className="text-lg font-black text-gray-800">{formName || profile?.displayName}</h2>
-                <p className="text-xs font-bold text-blue-600 mt-1">{formSpec}</p>
+                <h2 className="text-xl font-serif font-black text-[#001a41] mt-4">{formName || profile?.displayName}</h2>
+                <span className="px-3 py-1.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-600 tracking-wide uppercase mt-2">
+                  {formSpec}
+                </span>
                 <div className="h-[1px] bg-gray-100 w-full my-4" />
 
-                <div className="w-full space-y-3.5 text-left text-xs">
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <Icon name="verified" size={16} className="text-blue-600" filled />
-                    <span className="font-semibold text-gray-500">CCHN: {formLicense || "Chưa cập nhật"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <Icon name="domain" size={16} className="text-blue-600" />
-                    <span className="font-semibold text-gray-500 truncate">Nơi công tác: {formHospital || "Chưa cập nhật"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <Icon name="phone" size={16} className="text-blue-600" />
-                    <span className="font-semibold text-gray-500">{formPhone || "Chưa cập nhật số điện thoại"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <Icon name="mail" size={16} className="text-blue-600" />
-                    <span className="font-semibold text-gray-500 truncate">{formEmail || "Chưa cập nhật email"}</span>
-                  </div>
+                <div className="w-full space-y-2.5 text-left text-xs">
+                  {[
+                    { icon: "verified", text: formLicense || "Chưa cập nhật CCHN", label: "Chứng chỉ hành nghề" },
+                    { icon: "domain", text: formHospital || "Chưa cập nhật đơn vị", label: "Nơi công tác" },
+                    { icon: "phone", text: formPhone || "Chưa cập nhật SĐT", label: "Số điện thoại" },
+                    { icon: "mail", text: formEmail || "Chưa cập nhật email", label: "Email" },
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50 border border-gray-100 hover:border-blue-100 transition-colors">
+                      <Icon name={item.icon} size={16} className="text-blue-600" />
+                      <div className="min-w-0">
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">{item.label}</p>
+                        <p className="font-semibold text-gray-700 truncate mt-0.5">{item.text}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -410,12 +449,36 @@ export default function DoctorProfilePage() {
 
                     {/* Giới thiệu bản thân */}
                     <div className="flex flex-col gap-1.5 md:col-span-2">
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Lời giới thiệu & Kinh nghiệm (Bio)</label>
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Lời giới thiệu bản thân (Bio)</label>
                       <textarea
                         value={formBio}
                         onChange={(e) => setFormBio(e.target.value)}
-                        placeholder="Chia sẻ về quan điểm tư vấn, số năm kinh nghiệm và chuyên môn sâu..."
-                        rows={6}
+                        placeholder="Chia sẻ về quan điểm tư vấn, sứ mệnh hỗ trợ học sinh..."
+                        rows={4}
+                        className="w-full bg-[#f8fafc] border border-gray-200 focus:border-blue-500 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500/10 transition-all resize-none"
+                      />
+                    </div>
+
+                    {/* Kinh nghiệm làm việc */}
+                    <div className="flex flex-col gap-1.5 md:col-span-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Kinh nghiệm lâm sàng & làm việc</label>
+                      <textarea
+                        value={formExperience}
+                        onChange={(e) => setFormExperience(e.target.value)}
+                        placeholder="Mô tả kinh nghiệm công tác nổi bật của bạn... (Ví dụ:&#10;- Chuyên gia tham vấn trưởng tại SafeSchool Hub (2024 - Nay)&#10;- Chuyên viên tư vấn tâm lý học đường tại THPT Chuyên (2018 - 2024))"
+                        rows={5}
+                        className="w-full bg-[#f8fafc] border border-gray-200 focus:border-blue-500 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500/10 transition-all resize-none"
+                      />
+                    </div>
+
+                    {/* Học vấn & Thành tích */}
+                    <div className="flex flex-col gap-1.5 md:col-span-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Học vấn & Thành tích nổi bật</label>
+                      <textarea
+                        value={formAchievements}
+                        onChange={(e) => setFormAchievements(e.target.value)}
+                        placeholder="Mô tả bằng cấp, học vị và các thành tựu nghiên cứu... (Ví dụ:&#10;- Thạc sĩ Tâm lý học lâm sàng (Đại học Quốc gia)&#10;- Chứng nhận hoàn thành khoá học trị liệu nhận thức hành vi CBT)"
+                        rows={5}
                         className="w-full bg-[#f8fafc] border border-gray-200 focus:border-blue-500 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500/10 transition-all resize-none"
                       />
                     </div>
@@ -458,23 +521,14 @@ export default function DoctorProfilePage() {
 
                   {/* Specialties Bento Card */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Clinical Experience Mock list */}
+                    {/* Clinical Experience list */}
                     <div className="bg-white rounded-3xl border border-[#e2e8f0] p-6 shadow-[0_4px_20px_rgba(0,51,102,0.03)] space-y-4">
                       <h4 className="text-sm font-extrabold text-gray-800 flex items-center gap-2">
                         <Icon name="medical_services" size={18} className="text-blue-600" />
-                        Kinh nghiệm lâm sàng
+                        Kinh nghiệm lâm sàng & làm việc
                       </h4>
-                      <div className="space-y-3.5">
-                        <div className="border-b border-gray-100 pb-3">
-                          <p className="text-xs font-bold text-gray-800">Chuyên gia tham vấn trưởng</p>
-                          <p className="text-[10px] text-blue-600 font-bold mt-0.5">SafeSchool Hub Partnership • 2024 - Nay</p>
-                          <p className="text-[11px] text-gray-500 mt-1">Đồng hành trị liệu tâm lý và gỡ rối áp lực học đường cho hàng nghìn học sinh.</p>
-                        </div>
-                        <div className="pb-1">
-                          <p className="text-xs font-bold text-gray-800">Chuyên viên tư vấn tâm lý</p>
-                          <p className="text-[10px] text-blue-600 font-bold mt-0.5">Trung tâm bảo trợ trẻ em và thanh thiếu niên • 2018 - 2024</p>
-                          <p className="text-[11px] text-gray-500 mt-1">Hỗ trợ các liệu pháp nhận thức hành vi (CBT) và phát triển hành vi cảm xúc.</p>
-                        </div>
+                      <div className="text-xs text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50/50 p-4 rounded-2xl border border-gray-100 min-h-[120px]">
+                        {profile?.experience || "Chưa cập nhật thông tin về kinh nghiệm làm việc."}
                       </div>
                     </div>
 
@@ -482,19 +536,10 @@ export default function DoctorProfilePage() {
                     <div className="bg-white rounded-3xl border border-[#e2e8f0] p-6 shadow-[0_4px_20px_rgba(0,51,102,0.03)] space-y-4">
                       <h4 className="text-sm font-extrabold text-gray-800 flex items-center gap-2">
                         <Icon name="school" size={18} className="text-blue-600" />
-                        Học vấn & Bằng cấp
+                        Học vấn & Thành tích nổi bật
                       </h4>
-                      <div className="space-y-3.5">
-                        <div className="border-b border-gray-100 pb-3">
-                          <p className="text-xs font-bold text-gray-800">Thạc sĩ / Tiến sĩ Tâm lý học lâm sàng</p>
-                          <p className="text-[10px] text-blue-600 font-bold mt-0.5">Đại học Sư phạm / Đại học Quốc gia</p>
-                          <p className="text-[11px] text-gray-500 mt-1">Chuyên ngành tham vấn tâm lý gia đình, trị liệu trẻ em và thanh thiếu niên.</p>
-                        </div>
-                        <div className="pb-1">
-                          <p className="text-xs font-bold text-gray-800">Chứng nhận Khoá học chuyên sâu CBT</p>
-                          <p className="text-[10px] text-blue-600 font-bold mt-0.5">Hiệp hội Tâm lý học Việt Nam</p>
-                          <p className="text-[11px] text-gray-500 mt-1">Đào tạo chuyên môn về phương pháp Nhận thức Hành vi (Cognitive Behavioral Therapy).</p>
-                        </div>
+                      <div className="text-xs text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50/50 p-4 rounded-2xl border border-gray-100 min-h-[120px]">
+                        {profile?.achievements || "Chưa cập nhật thông tin về học vấn, thành tích nổi bật."}
                       </div>
                     </div>
                   </div>

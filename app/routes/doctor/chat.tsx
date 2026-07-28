@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, redirect } from "react-router";
 import { DoctorSidebar } from "../../components/doctor/DoctorSidebar";
 import { Icon } from "../../components/ui/Icon";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -9,6 +9,33 @@ import {
   type DoctorChat,
   type DoctorChatMessage,
 } from "../../src/services/doctorChatService";
+import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import "../../src/config/firebase";
+
+export async function clientLoader() {
+  const authInstance = getAuth(getApp());
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = authInstance.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  if (!user) {
+    throw redirect("/auth/login?redirect=/doctor/chat");
+  }
+
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "doctor" && role !== "admin") {
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
+}
+
 
 export function meta() {
   return [

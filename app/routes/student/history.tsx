@@ -1,7 +1,33 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, redirect } from "react-router";
 import { Sidebar } from "../../components/student/Sidebar";
 import { Icon } from "../../components/ui/Icon";
+import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import "../../src/config/firebase";
+
+export async function clientLoader() {
+  const auth = getAuth(getApp());
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  if (!user) {
+    throw redirect("/auth/login?redirect=/student/history");
+  }
+
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "student" && role !== "admin") {
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
+}
 
 export function meta() {
   return [

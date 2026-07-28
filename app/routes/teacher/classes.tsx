@@ -1,7 +1,33 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, redirect } from "react-router";
 import { TeacherSidebar } from "../../components/teacher/TeacherSidebar";
 import { Icon } from "../../components/ui/Icon";
+import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import "../../src/config/firebase";
+
+export async function clientLoader() {
+  const authInstance = getAuth(getApp());
+  const user = await new Promise<import("firebase/auth").User | null>(
+    (resolve) => {
+      const unsubscribe = authInstance.onAuthStateChanged((u) => {
+        unsubscribe();
+        resolve(u);
+      });
+    }
+  );
+
+  if (!user) {
+    throw redirect("/auth/login?redirect=/teacher/classes");
+  }
+
+  const role = localStorage.getItem("userRole");
+  if (role && role !== "teacher" && role !== "admin") {
+    throw redirect("/auth/login?error=access_denied");
+  }
+
+  return null;
+}
 
 export function meta() {
   return [
