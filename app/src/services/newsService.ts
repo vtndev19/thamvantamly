@@ -22,26 +22,9 @@ import { getUsersBySchoolCode } from "./userService";
 
 // ── Collections ────────────────────────────────────────────────────────────────
 const NEWS_ARTICLES_COLLECTION = "newsArticles";
-const NEWS_POSTS_COLLECTION = "news_posts"; // keep for backward compatibility
 const STUDENT_NOTIFICATIONS_COLLECTION = "student_notifications";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-export type NewsCategory = "news" | "event";
-
-export interface NewsPostInput {
-  teacherUid: string;
-  teacherName: string;
-  schoolCode: string;
-  title: string;
-  content: string;
-  category: NewsCategory;
-  isBroadcast: boolean;
-}
-
-export interface NewsPost extends NewsPostInput {
-  id: string;
-  createdAt: number;
-}
 
 export interface StudentNotification {
   id?: string;
@@ -310,41 +293,7 @@ export class NewsService {
   }
 }
 
-// ── Backward Compatibility functions ──
-export async function createNewsPost(input: NewsPostInput): Promise<string> {
-  return NewsService.createArticle({
-    title: input.title,
-    summary: input.content.slice(0, 150),
-    content: input.content,
-    category: input.category === "event" ? "announcement" : "general",
-    authorId: input.teacherUid,
-    authorName: input.teacherName,
-    authorRole: "teacher",
-    schoolCode: input.schoolCode,
-    thptId: input.schoolCode,
-    isBroadcast: input.isBroadcast,
-  });
-}
-
-export async function getNewsBySchoolCode(schoolCode: string): Promise<NewsPost[]> {
-  const postsRef = collection(db, NEWS_ARTICLES_COLLECTION);
-  const q = query(postsRef, where("schoolCode", "==", schoolCode));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((docSnap) => {
-    const data = docSnap.data();
-    return {
-      id: docSnap.id,
-      teacherUid: data.authorId || "",
-      teacherName: data.authorName || "",
-      schoolCode: data.schoolCode || "",
-      title: data.title || "",
-      content: data.content || "",
-      category: data.category === "announcement" ? "event" : "news",
-      isBroadcast: data.isBroadcast || false,
-      createdAt: data.createdAt ? (data.createdAt.seconds * 1000 || data.createdAt) : Date.now(),
-    } as NewsPost;
-  }).sort((a, b) => b.createdAt - a.createdAt);
-}
+// Legacy functions removed
 
 export async function getStudentNotifications(studentUid: string): Promise<StudentNotification[]> {
   if (!studentUid) return [];
