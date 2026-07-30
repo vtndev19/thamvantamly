@@ -23,7 +23,6 @@ export default [
   route("teacher/qna", "routes/teacher/qna.tsx"),
   route("teacher/news", "routes/teacher/news.tsx"),
   route("teacher/profile", "routes/teacher/profile.tsx"),
-  route("teacher/news", "routes/teacher/news.tsx"),
 
   // ── Student routes ─────────────────────────────────────────────────────
   route("student/dashboard", "routes/student/dashboard.tsx"),

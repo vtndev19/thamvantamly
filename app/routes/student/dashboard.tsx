@@ -4,6 +4,7 @@ import { Sidebar } from "../../components/student/Sidebar";
 import { QuickSupportGrid } from "../../components/student/QuickSupportCard";
 import { FeaturedExperts } from "../../components/student/ExpertCard";
 import { Icon } from "../../components/ui/Icon";
+import { StudentNotificationBell } from "../../components/student/StudentNotificationBell";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -115,14 +116,7 @@ export default function StudentDashboard() {
           {/* Action Icons & Profile */}
           <div className="flex items-center gap-3">
             {/* Notification Bell */}
-            <button
-              className="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-colors cursor-pointer"
-              aria-label="Thông báo"
-            >
-              <Icon name="notifications" size={22} />
-              {/* Active Dot */}
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error animate-pulse" />
-            </button>
+            <StudentNotificationBell />
 
             {/* Help Support → navigate to support page */}
             <Link

@@ -1,24 +1,31 @@
 import {
   collection,
+  doc,
   addDoc,
+  updateDoc,
+  deleteDoc,
+  getDoc,
   getDocs,
   query,
   where,
-  doc,
-  updateDoc,
   orderBy,
   onSnapshot,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
   type Unsubscribe,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { getUsersBySchoolCode } from "./userService";
 
 // ── Collections ────────────────────────────────────────────────────────────────
-const NEWS_POSTS_COLLECTION = "news_posts";
+const NEWS_ARTICLES_COLLECTION = "newsArticles";
+const NEWS_POSTS_COLLECTION = "news_posts"; // keep for backward compatibility
 const STUDENT_NOTIFICATIONS_COLLECTION = "student_notifications";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-
 export type NewsCategory = "news" | "event";
 
 export interface NewsPostInput {
@@ -28,7 +35,7 @@ export interface NewsPostInput {
   title: string;
   content: string;
   category: NewsCategory;
-  isBroadcast: boolean; // ← Checkbox "Thông báo chung"
+  isBroadcast: boolean;
 }
 
 export interface NewsPost extends NewsPostInput {
@@ -43,205 +50,344 @@ export interface StudentNotification {
   newsPostId: string;
   title: string;
   message: string;
-  category: NewsCategory;
+  category: "general" | "psychology" | "announcement" | "guide" | "news" | "event";
   senderName: string;
   isRead: boolean;
   createdAt: number;
 }
 
-const CATEGORY_LABELS: Record<NewsCategory, string> = {
+export interface Article {
+  id?: string;
+  title: string;
+  summary: string;
+  content: string;
+  category: "general" | "psychology" | "announcement" | "guide";
+  imageUrl?: string;
+  imageUrls?: string[]; // Multiple images as base64
+  authorId: string;
+  authorName: string;
+  authorRole: "student" | "teacher" | "doctor" | "admin";
+  likes: number;
+  views: number;
+  likedBy?: string[]; // Array of user Uids
+  createdAt: Date | Timestamp | null;
+  updatedAt: Date | Timestamp | null;
+  schoolCode?: string;
+  thptId?: string;
+  isBroadcast?: boolean;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  general: "Chung",
+  psychology: "Tâm lý học đường",
+  announcement: "Thông báo",
+  guide: "Cẩm nang",
   news: "Tin tức",
   event: "Sự kiện",
 };
 
-// ── Service Functions ──────────────────────────────────────────────────────────
+export const FALLBACK_ARTICLES: Article[] = [
+  {
+    id: "news_1",
+    title: "Chăm sóc sức khỏe tinh thần mùa thi cử: Lời khuyên từ chuyên gia",
+    summary: "Mùa thi cử cận kề mang theo nhiều áp lực. Làm thế nào để giữ vững tinh thần thoải mái, ngủ đủ giấc và ôn tập hiệu quả?",
+    content: `## Áp lực mùa thi và sức khỏe tinh thần
 
-/**
- * Tạo bài viết Tin tức & Sự kiện mới.
- * Nếu `isBroadcast === true`, tự động gửi thông báo đến tất cả học sinh
- * có cùng mã THPT (schoolCode) với giáo viên.
- */
-export async function createNewsPost(
-  input: NewsPostInput
-): Promise<string> {
-  try {
-    const postsRef = collection(db, NEWS_POSTS_COLLECTION);
-    const newPost = {
-      teacherUid: input.teacherUid,
-      teacherName: input.teacherName,
-      schoolCode: input.schoolCode.trim(),
-      title: input.title.trim(),
-      content: input.content.trim(),
-      category: input.category,
-      isBroadcast: input.isBroadcast,
-      createdAt: Date.now(),
-    };
+Mùa thi cử luôn là khoảng thời gian thử thách lớn đối với mọi học sinh. Áp lực từ kỳ vọng của bản thân, gia đình và nhà trường có thể dẫn đến trạng thái căng thẳng (stress) kéo dài, lo âu, thậm chí là trầm cảm.
 
-    const docRef = await addDoc(postsRef, newPost);
-    const postId = docRef.id;
+### Những dấu hiệu stress mùa thi cần lưu ý:
+1. **Mất ngủ thường xuyên**: Trằn trọc, thức giấc giữa đêm hoặc ngủ không sâu giấc.
+2. **Thay đổi thói quen ăn uống**: Chán ăn hoặc ăn quá nhiều đồ ngọt, đồ ăn nhanh.
+3. **Cảm xúc thất thường**: Dễ nổi cáu, lo sợ vô cớ, khóc lóc hoặc cảm thấy bất lực.
+4. **Giảm khả năng tập trung**: Đọc sách không vào, mau quên.
 
-    // ── Gửi thông báo chung nếu checkbox được tick ──────────────────────────
-    if (input.isBroadcast && input.schoolCode.trim()) {
-      try {
-        const students = await getUsersBySchoolCode(
-          input.schoolCode.trim(),
-          "student"
-        );
-        const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
+---
 
-        for (const student of students) {
-          await addDoc(notifsRef, {
-            studentUid: student.uid,
-            schoolCode: input.schoolCode.trim(),
-            newsPostId: postId,
-            title: `📢 [${CATEGORY_LABELS[input.category]}] ${input.title.trim()}`,
-            message: input.content.trim().slice(0, 200) +
-              (input.content.trim().length > 200 ? "…" : ""),
-            category: input.category,
-            senderName: input.teacherName,
-            isRead: false,
-            createdAt: Date.now(),
-          } satisfies Omit<StudentNotification, "id">);
-        }
+## 4 Lời khuyên vàng để duy trì sức khỏe tinh thần tốt
 
-        console.log(
-          `✅ Đã gửi thông báo chung đến ${students.length} học sinh (${input.schoolCode.trim()})`
-        );
-      } catch (err) {
-        console.warn(
-          "Không thể gửi thông báo chung cho học sinh do quy tắc Firestore:",
-          err
-        );
+### 1. Quản lý thời gian học tập khoa học
+Hãy chia nhỏ nội dung ôn tập và học theo phương pháp **Pomodoro** (học 25 phút, nghỉ 5 phút). Tránh việc thức thâu đêm học dồn (nhồi nhét kiến thức) vì điều này khiến não bộ quá tải và suy giảm trí nhớ nghiêm trọng.
+
+### 2. Ưu tiên giấc ngủ chất lượng
+Giấc ngủ từ 7-8 tiếng mỗi đêm là bắt buộc để não bộ củng cố kiến thức đã học trong ngày. Trước khi ngủ 30 phút, hãy tắt tất cả các thiết bị điện tử để mắt và hệ thần kinh được thư giãn.
+
+### 3. Dinh dưỡng đầy đủ và vận động nhẹ nhàng
+- Bổ sung thực phẩm giàu omega-3 (cá, hạt óc chó), rau xanh, trái cây.
+- Uống đủ 2 lít nước mỗi ngày.
+- Dành 15-20 phút đi bộ, tập yoga hoặc thể dục nhẹ để tăng cường tuần hoàn máu và kích thích sản sinh hormone hạnh phúc (endorphin).
+
+### 4. Chia sẻ và tìm kiếm sự trợ giúp
+Nếu cảm thấy lo âu vượt quá tầm kiểm soát, em đừng ngần ngại chia sẻ với bố mẹ, giáo viên hoặc đặt lịch tư vấn trực tuyến với các **Bác sĩ Tâm lý trên SafeSchool Hub** để nhận được sự đồng hành và tháo gỡ kịp thời.
+
+> "Hãy nhớ rằng, điểm số rất quan trọng, nhưng sức khỏe và hạnh phúc của em mới là điều quý giá nhất."`,
+    category: "psychology",
+    imageUrl: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=600&auto=format&fit=crop",
+    imageUrls: ["https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=600&auto=format&fit=crop"],
+    authorId: "fallback_1",
+    authorName: "ThS. Trần Thị Lan",
+    authorRole: "doctor",
+    likes: 124,
+    views: 450,
+    likedBy: [],
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+  },
+  {
+    id: "news_2",
+    title: "Diễn đàn chuyên đề: Phòng chống Bạo lực học đường năm học 2026",
+    summary: "Nhà trường tổ chức buổi ngoại khóa chuyên đề nhằm nâng cao nhận thức, trang bị kỹ năng ứng phó và tuyên truyền thông điệp trường học an toàn.",
+    content: `## Diễn đàn chuyên đề nâng cao nhận thức học sinh
+
+Nhằm xây dựng môi trường giáo dục an toàn, lành mạnh, thân thiện và phòng chống hiệu quả các hành vi bạo lực học đường, Ban Giám hiệu nhà trường phối hợp cùng Đoàn Thanh niên và Tổ tư vấn tâm lý tổ chức Diễn đàn chuyên đề: **"SafeSchool - Trường học hạnh phúc, nói không với bạo lực"**.
+
+### Thông tin chương trình:
+* **Thời gian**: 07:30 - 11:30, Thứ Hai ngày 10 tháng 08 năm 2026.
+* **Địa điểm**: Nhà đa năng trường THPT.
+* **Thành phần tham gia**: Toàn thể cán bộ, giáo viên, nhân viên và học sinh các khối lớp.
+
+---
+
+## Các nội dung chính tại diễn đàn
+
+### 1. Tọa đàm cùng Chuyên gia Pháp luật & Tâm lý
+Học sinh sẽ được lắng nghe các chuyên gia phân tích về định nghĩa bạo lực học đường (bao gồm bạo lực thể chất, bạo lực ngôn từ và bắt nạt trên không gian mạng), những hậu quả pháp lý nghiêm trọng và tác động tiêu cực đến tâm lý lâu dài của cả nạn nhân lẫn người gây ra bạo lực.
+
+### 2. Tập huấn kỹ năng tự vệ và xử lý tình huống
+Hướng dẫn học sinh thực hành các kỹ năng tự bảo vệ bản thân, kỹ năng kiềm chế cảm xúc tức giận, cách hòa giải mâu thuẫn bằng biện pháp hòa bình, và cách ứng phó khi chứng kiến bạn bè bị bắt nạt.
+
+### 3. Ra mắt Kênh hỗ trợ trực tuyến SafeSchool Hub
+Nhà trường sẽ hướng dẫn chi tiết cách sử dụng nền tàm **SafeSchool Hub** để gửi phản ánh ẩn danh, báo cáo khẩn cấp tới Ban Giám hiệu hoặc giáo viên chủ nhiệm, và cách kết nối nhanh với Chuyên gia Tâm lý học đường khi gặp các khó khăn tâm lý.
+
+> "Mỗi học sinh hãy là một đại sứ của sự tử tế. Hãy cùng chung tay bảo vệ bản thân và bạn bè xung quanh vì một mái trường không bạo lực."`,
+    category: "announcement",
+    imageUrl: "https://images.unsplash.com/photo-1544717305-2782549b5136?q=80&w=600&auto=format&fit=crop",
+    imageUrls: ["https://images.unsplash.com/photo-1544717305-2782549b5136?q=80&w=600&auto=format&fit=crop"],
+    authorId: "admin_system",
+    authorName: "Ban Giám Hiệu",
+    authorRole: "admin",
+    likes: 85,
+    views: 310,
+    likedBy: [],
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+  }
+];
+
+export class NewsService {
+  // ── 1. Subscribe to articles list (realtime) ──
+  static subscribeToArticles(callback: (articles: Article[]) => void): Unsubscribe {
+    const q = query(collection(db, NEWS_ARTICLES_COLLECTION), orderBy("createdAt", "desc"));
+
+    return onSnapshot(q, (snap) => {
+      if (snap.empty) {
+        callback(FALLBACK_ARTICLES);
+        return;
       }
-    }
 
-    return postId;
-  } catch (error: any) {
-    console.error("Lỗi Firestore khi tạo bài viết:", error);
-    if (
-      error?.code === "permission-denied" ||
-      error?.message?.includes("permissions")
-    ) {
-      throw new Error(
-        "Lỗi phân quyền Firebase. Vui lòng cập nhật Rules trong Firebase Console để cho phép ghi dữ liệu vào 'news_posts' và 'student_notifications'."
-      );
+      const list: Article[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      } as Article));
+      callback(list);
+    }, (err) => {
+      console.error("[NewsService] subscribeToArticles error:", err);
+      callback(FALLBACK_ARTICLES);
+    });
+  }
+
+  // ── 2. Create an article ──
+  static async createArticle(
+    article: Omit<Article, "id" | "createdAt" | "updatedAt" | "likes" | "views" | "likedBy">
+  ): Promise<string> {
+    try {
+      const docData = {
+        ...article,
+        likes: 0,
+        views: 0,
+        likedBy: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      const ref = await addDoc(collection(db, NEWS_ARTICLES_COLLECTION), docData);
+      const articleId = ref.id;
+
+      // ── Gửi thông báo chung nếu checkbox isBroadcast được tick ──
+      if (article.isBroadcast && article.schoolCode) {
+        try {
+          const students = await getUsersBySchoolCode(article.schoolCode, "student");
+          const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
+
+          for (const student of students) {
+            await addDoc(notifsRef, {
+              studentUid: student.uid,
+              schoolCode: article.schoolCode,
+              newsPostId: articleId,
+              title: `📢 [${CATEGORY_LABELS[article.category] || "Tin tức"}] ${article.title.trim()}`,
+              message: article.summary.trim().slice(0, 200) + (article.summary.trim().length > 200 ? "…" : ""),
+              category: article.category,
+              senderName: article.authorName,
+              isRead: false,
+              createdAt: Date.now(),
+            } satisfies Omit<StudentNotification, "id">);
+          }
+          console.log(`✅ Đã gửi thông báo đến ${students.length} học sinh trường ${article.schoolCode}`);
+        } catch (err) {
+          console.warn("Lỗi gửi thông báo chung cho học sinh:", err);
+        }
+      }
+
+      return articleId;
+    } catch (err) {
+      console.error("[NewsService] createArticle error:", err);
+      throw err;
     }
-    throw error;
+  }
+
+  // ── 3. Update an article ──
+  static async updateArticle(id: string, article: Partial<Article>): Promise<void> {
+    try {
+      if (id.startsWith("news_")) {
+        console.info("[NewsService] Cannot update mock article on Firestore");
+        return;
+      }
+      const ref = doc(db, NEWS_ARTICLES_COLLECTION, id);
+      await updateDoc(ref, {
+        ...article,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("[NewsService] updateArticle error:", err);
+      throw err;
+    }
+  }
+
+  // ── 4. Delete an article ──
+  static async deleteArticle(id: string): Promise<void> {
+    try {
+      if (id.startsWith("news_")) {
+        console.info("[NewsService] Cannot delete mock article on Firestore");
+        return;
+      }
+      await deleteDoc(doc(db, NEWS_ARTICLES_COLLECTION, id));
+    } catch (err) {
+      console.error("[NewsService] deleteArticle error:", err);
+      throw err;
+    }
+  }
+
+  // ── 5. Like or unlike an article ──
+  static async toggleLikeArticle(id: string, userId: string, isLiked: boolean): Promise<void> {
+    try {
+      if (id.startsWith("news_")) {
+        console.info("[NewsService] Cannot toggle like on mock article on Firestore");
+        return;
+      }
+      const ref = doc(db, NEWS_ARTICLES_COLLECTION, id);
+      await updateDoc(ref, {
+        likes: increment(isLiked ? -1 : 1),
+        likedBy: isLiked ? arrayRemove(userId) : arrayUnion(userId),
+      });
+    } catch (err) {
+      console.error("[NewsService] toggleLikeArticle error:", err);
+      throw err;
+    }
+  }
+
+  // ── 6. Increment view counter ──
+  static async incrementViews(id: string): Promise<void> {
+    try {
+      if (id.startsWith("news_")) {
+        console.info("[NewsService] Cannot increment views on mock article on Firestore");
+        return;
+      }
+      const ref = doc(db, NEWS_ARTICLES_COLLECTION, id);
+      await updateDoc(ref, {
+        views: increment(1),
+      });
+    } catch (err) {
+      console.error("[NewsService] incrementViews error:", err);
+    }
   }
 }
 
-/**
- * Lấy danh sách bài viết Tin tức & Sự kiện theo mã THPT.
- * Trả về kết quả sắp xếp mới nhất trước.
- */
-export async function getNewsBySchoolCode(
-  schoolCode: string
-): Promise<NewsPost[]> {
-  const targetCode = schoolCode?.trim() || "";
-  if (!targetCode) return [];
-
-  const postsRef = collection(db, NEWS_POSTS_COLLECTION);
-
-  try {
-    const q = query(
-      postsRef,
-      where("schoolCode", "==", targetCode)
-    );
-    const snapshot = await getDocs(q);
-    const results = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Omit<NewsPost, "id">),
-    }));
-
-    return results.sort((a, b) => b.createdAt - a.createdAt);
-  } catch (err) {
-    console.error("Lỗi getNewsBySchoolCode:", err);
-    return [];
-  }
+// ── Backward Compatibility functions ──
+export async function createNewsPost(input: NewsPostInput): Promise<string> {
+  return NewsService.createArticle({
+    title: input.title,
+    summary: input.content.slice(0, 150),
+    content: input.content,
+    category: input.category === "event" ? "announcement" : "general",
+    authorId: input.teacherUid,
+    authorName: input.teacherName,
+    authorRole: "teacher",
+    schoolCode: input.schoolCode,
+    thptId: input.schoolCode,
+    isBroadcast: input.isBroadcast,
+  });
 }
 
-/**
- * Lấy danh sách thông báo của học sinh (theo UID).
- * Trả về sắp xếp mới nhất trước.
- */
-export async function getStudentNotifications(
-  studentUid: string
-): Promise<StudentNotification[]> {
+export async function getNewsBySchoolCode(schoolCode: string): Promise<NewsPost[]> {
+  const postsRef = collection(db, NEWS_ARTICLES_COLLECTION);
+  const q = query(postsRef, where("schoolCode", "==", schoolCode));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      teacherUid: data.authorId || "",
+      teacherName: data.authorName || "",
+      schoolCode: data.schoolCode || "",
+      title: data.title || "",
+      content: data.content || "",
+      category: data.category === "announcement" ? "event" : "news",
+      isBroadcast: data.isBroadcast || false,
+      createdAt: data.createdAt ? (data.createdAt.seconds * 1000 || data.createdAt) : Date.now(),
+    } as NewsPost;
+  }).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getStudentNotifications(studentUid: string): Promise<StudentNotification[]> {
   if (!studentUid) return [];
-
   const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
   const q = query(notifsRef, where("studentUid", "==", studentUid));
   const snapshot = await getDocs(q);
-
-  return snapshot.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Omit<StudentNotification, "id">),
-    }))
-    .sort((a, b) => b.createdAt - a.createdAt);
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      ...data,
+    } as StudentNotification;
+  }).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-/**
- * Lắng nghe realtime danh sách thông báo của học sinh.
- * Trả về hàm unsubscribe để hủy listener.
- */
 export function listenStudentNotifications(
   studentUid: string,
   callback: (notifications: StudentNotification[]) => void
 ): Unsubscribe {
   const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
   const q = query(notifsRef, where("studentUid", "==", studentUid));
-
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const results = snapshot.docs
-        .map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<StudentNotification, "id">),
-        }))
-        .sort((a, b) => b.createdAt - a.createdAt);
-
-      callback(results);
-    },
-    (error) => {
-      console.error("Lỗi lắng nghe student_notifications:", error);
-    }
-  );
+  return onSnapshot(q, (snapshot) => {
+    const results = snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    } as StudentNotification)).sort((a, b) => b.createdAt - a.createdAt);
+    callback(results);
+  });
 }
 
-/**
- * Đánh dấu thông báo là đã đọc.
- */
-export async function markNotificationAsRead(
-  notifId: string
-): Promise<void> {
+export async function markNotificationAsRead(notifId: string): Promise<void> {
   if (!notifId) return;
   const notifRef = doc(db, STUDENT_NOTIFICATIONS_COLLECTION, notifId);
   await updateDoc(notifRef, { isRead: true });
 }
 
-/**
- * Đánh dấu tất cả thông báo của học sinh là đã đọc.
- */
-export async function markAllNotificationsAsRead(
-  studentUid: string
-): Promise<void> {
+export async function markAllNotificationsAsRead(studentUid: string): Promise<void> {
   if (!studentUid) return;
-
   const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
-  const q = query(
-    notifsRef,
-    where("studentUid", "==", studentUid),
-    where("isRead", "==", false)
-  );
+  const q = query(notifsRef, where("studentUid", "==", studentUid), where("isRead", "==", false));
   const snapshot = await getDocs(q);
-
   const updates = snapshot.docs.map((docSnap) =>
-    updateDoc(doc(db, STUDENT_NOTIFICATIONS_COLLECTION, docSnap.id), {
-      isRead: true,
-    })
+    updateDoc(doc(db, STUDENT_NOTIFICATIONS_COLLECTION, docSnap.id), { isRead: true })
   );
-
   await Promise.all(updates);
 }

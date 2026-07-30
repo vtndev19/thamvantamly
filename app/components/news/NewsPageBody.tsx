@@ -6,8 +6,7 @@ import {
   NewsService,
   type Article,
 } from "../../src/services/newsService";
-import { storage } from "../../src/config/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { compressImageToBase64 } from "../../src/utils/imageCompress";
 
 interface NewsPageBodyProps {
   role: "student" | "teacher" | "doctor" | "admin";
@@ -39,23 +38,32 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
   const activeArticleId = searchParams.get("id");
   const action = searchParams.get("action"); // "create" or "edit"
 
-  // Lọc/Tìm kiếm (chỉ áp dụng ở danh sách)
+  // Filter/Search states
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  // Form states cho trang Tạo/Sửa
+  // Form states
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<Article["category"]>("general");
   const [imageUrl, setImageUrl] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [isBroadcast, setIsBroadcast] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Gallery active index state for details view
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
 
   const canPublish = role === "teacher" || role === "admin";
   const userId = user?.uid || "";
   const userName = user?.displayName || "Tác giả";
+
+  // Reset active image gallery index when detail page changes
+  useEffect(() => {
+    setActiveImageIdx(0);
+  }, [activeArticleId]);
 
   // Lắng nghe danh sách tin tức thời gian thực
   useEffect(() => {
@@ -66,6 +74,11 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     });
     return () => unsub();
   }, []);
+
+  // Lọc danh sách bài viết của riêng user hiện tại
+  const myArticles = useMemo(() => {
+    return articles.filter((a) => a.authorId === userId);
+  }, [articles, userId]);
 
   // Lấy chi tiết bài viết đang mở dựa trên URL parameter 'id'
   const activeArticle = useMemo(() => {
@@ -88,6 +101,8 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
       setContent(activeArticle.content);
       setCategory(activeArticle.category);
       setImageUrl(activeArticle.imageUrl || "");
+      setImagePreviews(activeArticle.imageUrls || []);
+      setImageFiles([]);
     }
   }, [action, activeArticle]);
 
@@ -154,22 +169,12 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     }
   };
 
-  // Điều hướng tới trang Tạo bài viết
-  const navigateToCreatePage = () => {
-    setTitle("");
-    setSummary("");
-    setContent("");
-    setCategory("general");
-    setImageUrl(PRESET_IMAGES[0].url);
-    setSearchParams({ action: "create" });
-  };
-
   // Điều hướng tới trang Chỉnh sửa bài viết
   const navigateToEditPage = (e: React.MouseEvent, art: Article) => {
     e.stopPropagation();
     if (!art.id) return;
-    setImageFile(null);
-    setImagePreview(null);
+    setImageFiles([]);
+    setImagePreviews(art.imageUrls || []);
     setSearchParams({ action: "edit", id: art.id });
   };
 
@@ -190,30 +195,66 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     }
   };
 
+  // Xử lý chọn nhiều tệp ảnh
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setImageFiles((prev) => [...prev, ...files]);
+      const previews = files.map((file) => URL.createObjectURL(file));
+      setImagePreviews((prev) => [...prev, ...previews]);
+      setImageUrl(""); // Clear preset if uploading files
+    }
+  };
+
+  // Xóa ảnh khỏi danh sách chọn
+  const removeImage = (index: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
   // Submit tạo mới bài viết
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !summary.trim() || !content.trim() || !userId) return;
     setIsSubmitting(true);
     try {
-      let finalImageUrl = imageUrl;
-      if (imageFile) {
-        const imageRef = ref(storage, `news_images/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(imageRef, imageFile);
-        finalImageUrl = await getDownloadURL(imageRef);
+      const urls: string[] = [];
+      // Compress and convert selected files to base64
+      for (const file of imageFiles) {
+        try {
+          const b64 = await compressImageToBase64(file, 600, 400);
+          urls.push(b64);
+        } catch (err) {
+          console.warn("Lỗi nén ảnh:", err);
+        }
       }
+
+      const finalUrls = urls.length > 0 ? urls : [imageUrl || PRESET_IMAGES[0].url];
 
       await NewsService.createArticle({
         title: title.trim(),
         summary: summary.trim(),
         content: content.trim(),
         category,
-        imageUrl: finalImageUrl || PRESET_IMAGES[0].url,
+        imageUrl: finalUrls[0],
+        imageUrls: finalUrls,
         authorId: userId,
         authorName: userName,
         authorRole: role,
+        schoolCode: role === "teacher" ? user?.schoolCode || "" : "",
+        thptId: role === "teacher" ? user?.schoolCode || "" : "",
+        isBroadcast: role === "teacher" ? isBroadcast : false,
       });
-      setSearchParams({});
+
+      // Reset form fields
+      setTitle("");
+      setSummary("");
+      setContent("");
+      setCategory("general");
+      setImageUrl("");
+      setImageFiles([]);
+      setImagePreviews([]);
+      setIsBroadcast(false);
       alert("Đăng tin tức thành công! 🎉");
     } catch (err) {
       console.error("Lỗi đăng tin tức:", err);
@@ -229,20 +270,34 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     if (!activeArticleId || !title.trim() || !summary.trim() || !content.trim()) return;
     setIsSubmitting(true);
     try {
-      let finalImageUrl = imageUrl;
-      if (imageFile) {
-        const imageRef = ref(storage, `news_images/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(imageRef, imageFile);
-        finalImageUrl = await getDownloadURL(imageRef);
+      const urls: string[] = [];
+      // Compress new files
+      for (const file of imageFiles) {
+        try {
+          const b64 = await compressImageToBase64(file, 600, 400);
+          urls.push(b64);
+        } catch (err) {
+          console.warn("Lỗi nén ảnh:", err);
+        }
       }
+
+      const finalUrls = urls.length > 0 
+        ? urls 
+        : imagePreviews.length > 0 
+          ? imagePreviews 
+          : [imageUrl || PRESET_IMAGES[0].url];
 
       await NewsService.updateArticle(activeArticleId, {
         title: title.trim(),
         summary: summary.trim(),
         content: content.trim(),
         category,
-        imageUrl: finalImageUrl || PRESET_IMAGES[0].url,
+        imageUrl: finalUrls[0],
+        imageUrls: finalUrls,
       });
+      
+      setImageFiles([]);
+      setImagePreviews([]);
       setSearchParams({});
       alert("Cập nhật bài viết thành công! ✨");
     } catch (err) {
@@ -253,22 +308,7 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-      setImageUrl(""); // Clear preset URL when a file is selected
-    }
-  };
-
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    setImageUrl(PRESET_IMAGES[0].url); // Reset to preset
-  };
-
-  // Định dạng ngày
+  // Định dạng ngày hiển thị
   const formatDate = (val: any) => {
     if (!val) return "";
     const d = val instanceof Date ? val : typeof val.toDate === "function" ? val.toDate() : new Date(val);
@@ -304,156 +344,262 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
   if (action === "create" && canPublish) {
     return (
       <div className="flex-1 h-0 bg-[#f8fafc] overflow-y-auto px-6 py-8">
-        {/* Quay lại nút */}
-        <div className="mb-6">
+        {/* Back navigation */}
+        <div className="mb-6 flex items-center justify-between max-w-6xl w-full mx-auto">
           <button
             onClick={() => setSearchParams({})}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-sky-500 hover:text-sky-500 text-slate-600 font-bold text-xs shadow-2xs transition-all cursor-pointer"
           >
             <Icon name="arrow_back" size={16} />
-            Quay lại danh sách
+            Quay lại bảng tin chung
           </button>
         </div>
 
-        {/* Form Container */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm max-w-3xl w-full mx-auto overflow-hidden">
-          <div className="px-6 py-4.5 bg-sky-500 text-white">
-            <h2 className="text-base font-bold flex items-center gap-2">
-              <Icon name="edit_document" size={20} />
-              Tạo bài viết tin tức mới
-            </h2>
-            <p className="text-xs text-white/80 mt-1">Bài viết sẽ được đồng bộ và hiển thị trên bảng tin của tất cả người dùng.</p>
-          </div>
-
-          <form onSubmit={handleCreateSubmit} className="p-6 space-y-5">
-            {/* Title */}
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5">Tiêu đề bài viết</label>
-              <input
-                type="text"
-                required
-                placeholder="Nhập tiêu đề hấp dẫn..."
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 focus:bg-white"
-              />
+        {/* 2-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl w-full mx-auto">
+          
+          {/* Column 1: Form Đăng bài mới (7 cols) */}
+          <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4.5 bg-gradient-to-r from-sky-500 to-sky-600 text-white flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold flex items-center gap-2">
+                  <Icon name="edit_document" size={20} />
+                  Đăng bài viết mới
+                </h2>
+                <p className="text-[11px] text-white/80 mt-0.5">Tạo tin tức, thông báo hoặc cẩm nang kèm nhiều hình ảnh.</p>
+              </div>
+              {user?.schoolCode && (
+                <span className="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">
+                  {user.schoolCode}
+                </span>
+              )}
             </div>
 
-            {/* Category & Image Selector */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-5">
+              {/* Title */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Chuyên mục</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as Article["category"])}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white"
-                >
-                  <option value="general">Thông báo chung</option>
-                  <option value="psychology">Tâm lý học đường</option>
-                  <option value="announcement">Sự kiện & Hoạt động</option>
-                  <option value="guide">Cẩm nang & Kỹ năng</option>
-                </select>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Tiêu đề bài viết</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nhập tiêu đề hấp dẫn..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 focus:bg-white"
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Chọn ảnh bìa minh họa</label>
-                <select
-                  value={imageUrl}
-                  onChange={(e) => {
-                    setImageUrl(e.target.value);
-                    setImageFile(null);
-                    setImagePreview(null);
-                  }}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white mb-2"
-                >
-                  <option value="">-- Hoặc tải ảnh lên --</option>
-                  {PRESET_IMAGES.map((img) => (
-                    <option key={img.url} value={img.url}>
-                      {img.label}
-                    </option>
-                  ))}
-                </select>
+              {/* Category & Image/Broadcast */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Chuyên mục</label>
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      const val = e.target.value as Article["category"];
+                      setCategory(val);
+                      if (val !== "announcement") {
+                        setIsBroadcast(false);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white"
+                  >
+                    <option value="general">Thông báo chung</option>
+                    <option value="psychology">Tâm lý học đường</option>
+                    <option value="announcement">Sự kiện & Hoạt động</option>
+                    <option value="guide">Cẩm nang & Kỹ năng</option>
+                  </select>
+                </div>
 
-                <div className="relative">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Chọn ảnh bìa mẫu</label>
+                  <select
+                    value={imageUrl}
+                    onChange={(e) => {
+                      setImageUrl(e.target.value);
+                    }}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white"
+                  >
+                    <option value="">-- Hoặc tải nhiều ảnh bên dưới --</option>
+                    {PRESET_IMAGES.map((img) => (
+                      <option key={img.url} value={img.url}>
+                        {img.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Broadcast for teachers - only show when category is announcement */}
+              {role === "teacher" && category === "announcement" && (
+                <div className="flex items-center gap-2 animate-fade-in">
+                  <input
+                    type="checkbox"
+                    id="isBroadcast-create"
+                    checked={isBroadcast}
+                    onChange={(e) => setIsBroadcast(e.target.checked)}
+                    className="w-4 h-4 text-sky-500 border-slate-300 rounded focus:ring-sky-400 cursor-pointer"
+                  />
+                  <label htmlFor="isBroadcast-create" className="text-xs font-bold text-slate-600 cursor-pointer select-none">
+                    📢 Gửi thông báo đến học sinh cùng trường
+                  </label>
+                </div>
+              )}
+
+              {/* Select 1 or Multiple images */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Tải lên hình ảnh bài viết (Chọn nhiều ảnh)</label>
+                <div className="flex items-center gap-3">
                   <input
                     type="file"
-                    id="news-image-upload"
+                    id="create-news-images"
                     accept="image/*"
+                    multiple
                     onChange={handleImageChange}
                     className="hidden"
                   />
                   <label
-                    htmlFor="news-image-upload"
-                    className="flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700 cursor-pointer transition-colors"
+                    htmlFor="create-news-images"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-sky-500 rounded-xl text-xs font-bold transition-all cursor-pointer"
                   >
-                    <Icon name="upload_file" size={16} />
-                    Tải ảnh lên từ máy tính
+                    <Icon name="add_a_photo" size={16} />
+                    Chọn ảnh từ thiết bị
                   </label>
                 </div>
-              </div>
-            </div>
 
-            {/* Image Preview */}
-            {(imagePreview || imageUrl) && (
-              <div className="h-48 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 relative group">
-                <img src={imagePreview || imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                {imageFile && (
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none"
-                  >
-                    <Icon name="close" size={16} />
-                  </button>
+                {/* Previews list */}
+                {imagePreviews.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {imagePreviews.map((prev, idx) => (
+                      <div key={idx} className="w-16 h-12 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 relative group flex-shrink-0">
+                        <img src={prev} alt="" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none flex items-center justify-center shadow"
+                        >
+                          <Icon name="close" size={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
+
+              {/* Summary */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Tóm tắt ngắn (Summary)</label>
+                <textarea
+                  required
+                  rows={2}
+                  maxLength={200}
+                  placeholder="Viết một đoạn tóm tắt ngắn giới thiệu nội dung (khoảng 2-3 câu)..."
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 focus:bg-white resize-none"
+                />
+              </div>
+
+              {/* Content */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Nội dung chi tiết (Hỗ trợ định dạng xuống dòng)</label>
+                <textarea
+                  required
+                  rows={7}
+                  placeholder="Viết nội dung bài viết chi tiết tại đây..."
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 focus:bg-white"
+                />
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTitle("");
+                    setSummary("");
+                    setContent("");
+                    setCategory("general");
+                    setImageUrl("");
+                    setImageFiles([]);
+                    setImagePreviews([]);
+                    setIsBroadcast(false);
+                  }}
+                  className="px-5 py-2.5 text-slate-500 hover:bg-slate-100 rounded-xl text-sm font-bold bg-transparent border-none cursor-pointer"
+                >
+                  Nhập lại
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl text-sm font-bold cursor-pointer border-none shadow-sm transition-all"
+                >
+                  {isSubmitting ? "Đang xử lý..." : "Đăng bài viết mới"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Column 2: Danh sách bài viết cá nhân đã đăng (5 cols) */}
+          <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Icon name="history" size={16} />
+                Bài viết của bạn ({myArticles.length})
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-1">Danh sách các tin tức do chính bạn đăng tải trên hệ thống.</p>
+            </div>
+
+            {myArticles.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs font-medium space-y-2">
+                <Icon name="newspaper" size={28} className="text-slate-200" />
+                <p>Bạn chưa đăng tải bài viết nào.</p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin">
+                {myArticles.map((art) => (
+                  <div
+                    key={art.id}
+                    className="group flex gap-3 p-3 rounded-2xl border border-slate-100 hover:bg-slate-50 transition-all items-start relative cursor-pointer"
+                    onClick={() => setSearchParams({ id: art.id || "" })}
+                  >
+                    <div className="w-16 h-12 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-200/50">
+                      <img src={art.imageUrl || PRESET_IMAGES[0].url} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="min-w-0 flex-1 pr-14">
+                      <h4 className="text-xs font-bold text-slate-700 line-clamp-2 leading-snug group-hover:text-sky-500 transition-colors">
+                        {art.title}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {renderCategoryBadge(art.category)}
+                        <span className="text-[9px] text-slate-400 font-semibold">{formatDate(art.createdAt)}</span>
+                      </div>
+                    </div>
+                    {/* Hover actions */}
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50/90 pl-2 rounded-lg">
+                      <button
+                        onClick={(e) => navigateToEditPage(e, art)}
+                        className="p-1.5 text-slate-400 hover:text-sky-500 hover:bg-sky-100 rounded-lg border-none bg-transparent cursor-pointer"
+                        title="Sửa bài"
+                      >
+                        <Icon name="edit" size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteArticle(e, art)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg border-none bg-transparent cursor-pointer"
+                        title="Xóa bài"
+                      >
+                        <Icon name="delete" size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
+          </div>
 
-            {/* Summary */}
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5">Tóm tắt ngắn (Summary)</label>
-              <textarea
-                required
-                rows={2}
-                maxLength={200}
-                placeholder="Viết một đoạn tóm tắt ngắn khoảng 2-3 câu giới thiệu nội dung..."
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 focus:bg-white resize-none"
-              />
-            </div>
-
-            {/* Content */}
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5">Nội dung chi tiết (Markdown tự do)</label>
-              <textarea
-                required
-                rows={10}
-                placeholder="Viết nội dung bài viết chi tiết..."
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 focus:bg-white"
-              />
-            </div>
-
-            {/* Form Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setSearchParams({})}
-                className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-bold bg-transparent border-none cursor-pointer"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-xl text-sm font-bold cursor-pointer border-none shadow-sm transition-all"
-              >
-                {isSubmitting ? "Đang xử lý..." : "Đăng tin lên bảng"}
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     );
@@ -465,7 +611,7 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
       <div className="flex-1 h-0 bg-[#f8fafc] overflow-y-auto px-6 py-8">
         <div className="mb-6">
           <button
-            onClick={() => setSearchParams({})}
+            onClick={() => setSearchParams({ action: "create" })}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-sky-500 hover:text-sky-500 text-slate-600 font-bold text-xs shadow-2xs transition-all cursor-pointer"
           >
             <Icon name="arrow_back" size={16} />
@@ -512,58 +658,65 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Chọn ảnh bìa minh họa</label>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Chọn ảnh minh họa có sẵn</label>
                 <select
                   value={imageUrl}
                   onChange={(e) => {
                     setImageUrl(e.target.value);
-                    setImageFile(null);
-                    setImagePreview(null);
+                    setImageFiles([]);
+                    setImagePreviews([]);
                   }}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white mb-2"
                 >
-                  <option value="">-- Hoặc tải ảnh lên --</option>
+                  <option value="">-- Hoặc tải nhiều ảnh bên dưới --</option>
                   {PRESET_IMAGES.map((img) => (
                     <option key={img.url} value={img.url}>
                       {img.label}
                     </option>
                   ))}
                 </select>
-
-                <div className="relative">
-                  <input
-                    type="file"
-                    id="news-image-upload-edit"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="news-image-upload-edit"
-                    className="flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700 cursor-pointer transition-colors"
-                  >
-                    <Icon name="upload_file" size={16} />
-                    Tải ảnh lên từ máy tính
-                  </label>
-                </div>
               </div>
             </div>
 
-            {/* Image Preview */}
-            {(imagePreview || imageUrl) && (
-              <div className="h-48 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 relative group">
-                <img src={imagePreview || imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                {imageFile && (
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none"
-                  >
-                    <Icon name="close" size={16} />
-                  </button>
-                )}
+            {/* Multiple Images Upload */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5">Ảnh bài viết (Chọn nhiều ảnh mới)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  id="news-image-upload-edit-multi"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="news-image-upload-edit-multi"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 cursor-pointer transition-colors"
+                >
+                  <Icon name="upload_file" size={16} />
+                  Tải các ảnh mới lên
+                </label>
               </div>
-            )}
+
+              {/* Previews */}
+              {imagePreviews.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {imagePreviews.map((p, idx) => (
+                    <div key={idx} className="w-20 h-16 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 relative group flex-shrink-0">
+                      <img src={p} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none flex items-center justify-center"
+                      >
+                        <Icon name="close" size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Summary */}
             <div>
@@ -596,7 +749,7 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setSearchParams({})}
+                onClick={() => setSearchParams({ action: "create" })}
                 className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-bold bg-transparent border-none cursor-pointer"
               >
                 Hủy bỏ
@@ -618,10 +771,14 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
   // ─── VIEW 3: TRANG CHI TIẾT BÀI VIẾT (PAGE) ───
   if (activeArticleId && activeArticle) {
     const isLiked = activeArticle.likedBy?.includes(userId) || false;
+    const currentImages = activeArticle.imageUrls && activeArticle.imageUrls.length > 0 
+      ? activeArticle.imageUrls 
+      : [activeArticle.imageUrl || PRESET_IMAGES[0].url];
+
     return (
       <div className="flex-1 h-0 bg-[#f8fafc] overflow-y-auto px-6 py-8">
-        {/* Quay lại nút */}
-        <div className="mb-6 flex items-center justify-between">
+        {/* Back and Admin actions */}
+        <div className="mb-6 flex items-center justify-between font-bold">
           <button
             onClick={() => setSearchParams({})}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-sky-500 hover:text-sky-500 text-slate-600 font-bold text-xs shadow-2xs transition-all cursor-pointer"
@@ -630,7 +787,6 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
             Quay lại danh sách
           </button>
 
-          {/* Admin Controls */}
           {canPublish && (activeArticle.authorId === userId || role === "admin") && (
             <div className="flex items-center gap-2">
               <button
@@ -653,20 +809,39 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
 
         {/* 2-Column Detail Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl w-full mx-auto">
-          
           {/* Main Content Column */}
           <div className="lg:col-span-8 space-y-6 bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-xs">
-            
-            {/* Header Image */}
-            <div className="w-full bg-slate-950 flex items-center justify-center overflow-hidden h-64 md:h-96 rounded-2xl">
-              <img
-                src={activeArticle.imageUrl || PRESET_IMAGES[0].url}
-                alt={activeArticle.title}
-                className="w-full h-full object-contain"
-              />
+            {/* Gallery Image Box */}
+            <div className="space-y-3">
+              <div className="w-full bg-slate-950 flex items-center justify-center overflow-hidden h-64 md:h-96 rounded-2xl relative shadow-inner">
+                <img
+                  src={currentImages[activeImageIdx]}
+                  alt={activeArticle.title}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              {/* Thumbnail Gallery List */}
+              {currentImages.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto py-2 scrollbar-none">
+                  {currentImages.map((imgUrl, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveImageIdx(idx)}
+                      className={`w-20 h-14 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all cursor-pointer ${
+                        activeImageIdx === idx 
+                          ? "border-sky-500 scale-105 shadow-md" 
+                          : "border-transparent opacity-70 hover:opacity-100"
+                      }`}
+                    >
+                      <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Category badge & Read Stats */}
+            {/* Metadata Badges */}
             <div className="flex flex-wrap items-center gap-3">
               {renderCategoryBadge(activeArticle.category)}
               <span className="text-xs text-slate-400 font-medium">•</span>
@@ -680,17 +855,17 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
               {activeArticle.title}
             </h1>
 
-            {/* Summary */}
+            {/* Summary Block */}
             <blockquote className="border-l-4 border-sky-400 pl-4 py-1 italic text-slate-500 font-medium leading-relaxed bg-slate-50 rounded-r-xl">
               {activeArticle.summary}
             </blockquote>
 
-            {/* Article Content */}
+            {/* Content text */}
             <div className="text-slate-700 leading-relaxed text-sm whitespace-pre-wrap font-sans space-y-4 pt-2">
               {activeArticle.content}
             </div>
 
-            {/* Footer likes block */}
+            {/* Article Like View Counter */}
             <div className="border-t border-slate-100 pt-6 mt-8 flex items-center justify-between">
               <button
                 onClick={(e) => handleLike(e, activeArticle)}
@@ -715,9 +890,8 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
             </div>
           </div>
 
-          {/* Sidebar Info Column */}
+          {/* Sidebar Author Panel */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Author Card */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs flex flex-col items-center text-center space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Thông tin tác giả</h3>
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center font-bold text-sky-600 text-lg border overflow-hidden">
@@ -726,6 +900,11 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
               <div>
                 <h4 className="font-bold text-slate-800 text-base">{activeArticle.authorName}</h4>
                 <p className="text-xs text-slate-400 capitalize mt-0.5">{activeArticle.authorRole} hệ thống</p>
+                {activeArticle.schoolCode && (
+                  <p className="text-[10px] text-sky-600 font-bold mt-1 bg-sky-50 px-2.5 py-0.5 rounded-full inline-block">
+                    Trường: {activeArticle.schoolCode}
+                  </p>
+                )}
               </div>
               <div className="w-full h-px bg-slate-100" />
               <div className="text-xs text-slate-500 leading-relaxed">
@@ -733,7 +912,7 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
               </div>
             </div>
 
-            {/* Related Articles Card */}
+            {/* Related Articles list */}
             {relatedArticles.length > 0 && (
               <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs space-y-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bài viết liên quan</h3>
@@ -759,7 +938,6 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
               </div>
             )}
           </div>
-
         </div>
       </div>
     );
@@ -816,14 +994,14 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
             )}
           </div>
 
-          {/* Creator Button */}
+          {/* Go to Posting Page Button */}
           {canPublish && (
             <button
-              onClick={navigateToCreatePage}
+              onClick={() => setSearchParams({ action: "create" })}
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm shadow-md shadow-sky-500/10 transition-all duration-200 cursor-pointer border-none whitespace-nowrap"
             >
               <Icon name="edit_document" size={18} />
-              Đăng tin
+              Đăng tin tức
             </button>
           )}
         </div>
@@ -842,12 +1020,11 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
           <Icon name="newspaper" size={48} className="text-slate-200" />
           <div>
             <h3 className="text-base font-bold text-slate-800">Không tìm thấy tin tức nào</h3>
-            
           </div>
         </div>
       ) : (
         <div className="space-y-8">
-          {/* ── FEATURED HERO ARTICLE (Only on 'All' category and no search query) ── */}
+          {/* ── FEATURED HERO ARTICLE ── */}
           {selectedCategory === "all" && searchQuery === "" && featuredArticle && (
             <div
               onClick={() => setSearchParams({ id: featuredArticle.id || "" })}
@@ -862,6 +1039,14 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
                 <div className="absolute top-4 left-4">
                   {renderCategoryBadge(featuredArticle.category)}
                 </div>
+
+                {/* Multiple Images Count Badge */}
+                {featuredArticle.imageUrls && featuredArticle.imageUrls.length > 1 && (
+                  <div className="absolute bottom-4 right-4 bg-black/60 text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <Icon name="photo_library" size={12} />
+                    <span>{featuredArticle.imageUrls.length} ảnh</span>
+                  </div>
+                )}
               </div>
 
               <div className="lg:col-span-5 p-6 lg:p-8 flex flex-col justify-between">
@@ -893,8 +1078,8 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
                       <p className="text-xs font-bold text-slate-700 truncate max-w-[120px]">
                         {featuredArticle.authorName}
                       </p>
-                      <p className="text-[9px] text-slate-400 capitalize leading-none mt-0.5">
-                        {featuredArticle.authorRole}
+                      <p className="text-[9px] text-slate-400 capitalize leading-none mt-0.5 font-medium">
+                        {featuredArticle.authorRole === "teacher" ? `G.Viên` : featuredArticle.authorRole}
                       </p>
                     </div>
                   </div>
@@ -961,6 +1146,14 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
                         className="w-full h-full object-cover hover:scale-104 transition-transform duration-500"
                       />
                       <div className="absolute top-3 left-3">{renderCategoryBadge(art.category)}</div>
+
+                      {/* Multiple Images Count Badge */}
+                      {art.imageUrls && art.imageUrls.length > 1 && (
+                        <div className="absolute bottom-3 right-3 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                          <Icon name="photo_library" size={10} />
+                          <span>{art.imageUrls.length} ảnh</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Meta & Title */}
@@ -992,8 +1185,8 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
                         <p className="text-[11px] font-bold text-slate-700 truncate max-w-[80px]">
                           {art.authorName}
                         </p>
-                        <p className="text-[8px] text-slate-400 capitalize leading-none mt-0.5">
-                          {art.authorRole}
+                        <p className="text-[8px] text-slate-400 capitalize leading-none mt-0.5 font-semibold">
+                          {art.authorRole === "teacher" ? "G.Viên" : art.authorRole}
                         </p>
                       </div>
                     </div>

@@ -7,6 +7,7 @@ import { getAuth } from "firebase/auth";
 import "../../src/config/firebase";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { QnaCommunityBody } from "../../components/qna/QnaCommunityBody";
+import { StudentNotificationBell } from "../../components/student/StudentNotificationBell";
 
 export function meta() {
   return [
@@ -89,6 +90,7 @@ export default function StudentQnAPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <StudentNotificationBell />
             <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant/30 flex-shrink-0">
               <img
                 src={user?.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop"}
