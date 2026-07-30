@@ -12,6 +12,8 @@ import {
   type QuestionRecord,
   type QnaComment,
 } from "../../src/services/qnaService";
+import { storage } from "../../src/config/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const CATEGORIES = ["Tất cả", "Tâm lý", "Bạo lực học đường", "Học tập", "Sức khỏe"];
 
@@ -42,6 +44,8 @@ export function QnaCommunityBody() {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Feed & Comments state
   const [allPosts, setAllPosts] = useState<QuestionRecord[]>([]);
@@ -78,6 +82,19 @@ export function QnaCommunityBody() {
     setExpandedPostId(expandedPostId === postId ? null : postId);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
   const handleSubmitQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newQuestion.trim() || isSubmitting) return;
@@ -86,6 +103,13 @@ export function QnaCommunityBody() {
     setSubmitError(null);
 
     try {
+      let imageUrl = null;
+      if (imageFile) {
+        const imageRef = ref(storage, `qna_images/${Date.now()}_${imageFile.name}`);
+        await uploadBytes(imageRef, imageFile);
+        imageUrl = await getDownloadURL(imageRef);
+      }
+
       await submitQuestion({
         question: newQuestion,
         category: newCategory,
@@ -95,10 +119,13 @@ export function QnaCommunityBody() {
           displayName: user?.displayName || "Người dùng",
           role,
         },
+        imageUrl,
       });
 
       setNewQuestion("");
       setIsAnonymous(false);
+      setImageFile(null);
+      setImagePreview(null);
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 5000);
     } catch (err) {
@@ -226,17 +253,49 @@ export function QnaCommunityBody() {
                 />
               </div>
 
+              {imagePreview && (
+                <div className="relative inline-block w-max mt-2">
+                  <img src={imagePreview} alt="Preview" className="h-24 w-auto rounded-lg border border-outline-variant/30 object-cover" />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 cursor-pointer border-none flex items-center justify-center"
+                  >
+                    <Icon name="close" size={14} />
+                  </button>
+                </div>
+              )}
+
               {submitError && (
                 <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-xl px-3 py-2">{submitError}</p>
               )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="self-end bg-primary hover:bg-primary-container text-on-primary text-xs font-bold py-2.5 px-5 rounded-xl transition-all duration-200 shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 border-none"
-              >
-                {isSubmitting ? "Đang gửi..." : "Đăng câu hỏi"}
-              </button>
+              <div className="flex items-center justify-between mt-2">
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="image-upload"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="image-upload"
+                    className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant hover:text-primary cursor-pointer transition-colors"
+                  >
+                    <Icon name="image" size={18} />
+                    Thêm hình ảnh
+                  </label>
+                </div>
+                
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="bg-primary hover:bg-primary-container text-on-primary text-xs font-bold py-2.5 px-5 rounded-xl transition-all duration-200 shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 border-none"
+                >
+                  {isSubmitting ? "Đang gửi..." : "Đăng câu hỏi"}
+                </button>
+              </div>
             </form>
           </div>
 
@@ -321,9 +380,16 @@ export function QnaCommunityBody() {
                     </div>
 
                     {/* Post Content */}
-                    <p className="text-xs sm:text-sm text-on-surface leading-relaxed whitespace-pre-line font-medium">
-                      {post.content}
-                    </p>
+                    <div className="flex flex-col gap-3">
+                      <p className="text-xs sm:text-sm text-on-surface leading-relaxed whitespace-pre-line font-medium">
+                        {post.content}
+                      </p>
+                      {post.imageUrl && (
+                        <div className="rounded-xl overflow-hidden border border-outline-variant/20 max-w-sm">
+                          <img src={post.imageUrl} alt="Đính kèm" className="w-full h-auto object-cover max-h-[300px]" />
+                        </div>
+                      )}
+                    </div>
 
                     {/* Feed Card Actions */}
                     <div className="flex items-center justify-between border-t border-outline-variant/10 pt-3">
