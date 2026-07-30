@@ -6,6 +6,8 @@ import {
   NewsService,
   type Article,
 } from "../../src/services/newsService";
+import { storage } from "../../src/config/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 interface NewsPageBodyProps {
   role: "student" | "teacher" | "doctor" | "admin";
@@ -47,6 +49,8 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<Article["category"]>("general");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canPublish = role === "teacher" || role === "admin";
@@ -164,6 +168,8 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
   const navigateToEditPage = (e: React.MouseEvent, art: Article) => {
     e.stopPropagation();
     if (!art.id) return;
+    setImageFile(null);
+    setImagePreview(null);
     setSearchParams({ action: "edit", id: art.id });
   };
 
@@ -190,12 +196,19 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     if (!title.trim() || !summary.trim() || !content.trim() || !userId) return;
     setIsSubmitting(true);
     try {
+      let finalImageUrl = imageUrl;
+      if (imageFile) {
+        const imageRef = ref(storage, `news_images/${Date.now()}_${imageFile.name}`);
+        await uploadBytes(imageRef, imageFile);
+        finalImageUrl = await getDownloadURL(imageRef);
+      }
+
       await NewsService.createArticle({
         title: title.trim(),
         summary: summary.trim(),
         content: content.trim(),
         category,
-        imageUrl: imageUrl || PRESET_IMAGES[0].url,
+        imageUrl: finalImageUrl || PRESET_IMAGES[0].url,
         authorId: userId,
         authorName: userName,
         authorRole: role,
@@ -216,12 +229,19 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     if (!activeArticleId || !title.trim() || !summary.trim() || !content.trim()) return;
     setIsSubmitting(true);
     try {
+      let finalImageUrl = imageUrl;
+      if (imageFile) {
+        const imageRef = ref(storage, `news_images/${Date.now()}_${imageFile.name}`);
+        await uploadBytes(imageRef, imageFile);
+        finalImageUrl = await getDownloadURL(imageRef);
+      }
+
       await NewsService.updateArticle(activeArticleId, {
         title: title.trim(),
         summary: summary.trim(),
         content: content.trim(),
         category,
-        imageUrl: imageUrl || PRESET_IMAGES[0].url,
+        imageUrl: finalImageUrl || PRESET_IMAGES[0].url,
       });
       setSearchParams({});
       alert("Cập nhật bài viết thành công! ✨");
@@ -231,6 +251,21 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+      setImageUrl(""); // Clear preset URL when a file is selected
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageUrl(PRESET_IMAGES[0].url); // Reset to preset
   };
 
   // Định dạng ngày
@@ -324,22 +359,53 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
                 <label className="block text-xs font-bold text-slate-500 mb-1.5">Chọn ảnh bìa minh họa</label>
                 <select
                   value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white"
+                  onChange={(e) => {
+                    setImageUrl(e.target.value);
+                    setImageFile(null);
+                    setImagePreview(null);
+                  }}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white mb-2"
                 >
+                  <option value="">-- Hoặc tải ảnh lên --</option>
                   {PRESET_IMAGES.map((img) => (
                     <option key={img.url} value={img.url}>
                       {img.label}
                     </option>
                   ))}
                 </select>
+
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="news-image-upload"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="news-image-upload"
+                    className="flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700 cursor-pointer transition-colors"
+                  >
+                    <Icon name="upload_file" size={16} />
+                    Tải ảnh lên từ máy tính
+                  </label>
+                </div>
               </div>
             </div>
 
             {/* Image Preview */}
-            {imageUrl && (
-              <div className="h-48 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 relative">
-                <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+            {(imagePreview || imageUrl) && (
+              <div className="h-48 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 relative group">
+                <img src={imagePreview || imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                {imageFile && (
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none"
+                  >
+                    <Icon name="close" size={16} />
+                  </button>
+                )}
               </div>
             )}
 
@@ -449,22 +515,53 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
                 <label className="block text-xs font-bold text-slate-500 mb-1.5">Chọn ảnh bìa minh họa</label>
                 <select
                   value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white"
+                  onChange={(e) => {
+                    setImageUrl(e.target.value);
+                    setImageFile(null);
+                    setImagePreview(null);
+                  }}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-500 bg-white mb-2"
                 >
+                  <option value="">-- Hoặc tải ảnh lên --</option>
                   {PRESET_IMAGES.map((img) => (
                     <option key={img.url} value={img.url}>
                       {img.label}
                     </option>
                   ))}
                 </select>
+
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="news-image-upload-edit"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="news-image-upload-edit"
+                    className="flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700 cursor-pointer transition-colors"
+                  >
+                    <Icon name="upload_file" size={16} />
+                    Tải ảnh lên từ máy tính
+                  </label>
+                </div>
               </div>
             </div>
 
             {/* Image Preview */}
-            {imageUrl && (
-              <div className="h-48 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 relative">
-                <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+            {(imagePreview || imageUrl) && (
+              <div className="h-48 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 relative group">
+                <img src={imagePreview || imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                {imageFile && (
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none"
+                  >
+                    <Icon name="close" size={16} />
+                  </button>
+                )}
               </div>
             )}
 
