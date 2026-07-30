@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
-  sendEmailVerification,
   signOut,
   GoogleAuthProvider,
   type AuthError,
@@ -69,16 +68,6 @@ export function LoginForm() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-      // Kiểm tra xác minh email (chỉ áp dụng cho đăng nhập bằng email/password)
-      if (!userCredential.user.emailVerified) {
-        await signOut(auth);
-        setError(
-          "Email của bạn chưa được xác minh. Vui lòng kiểm tra hộp thư và nhấn vào liên kết xác minh."
-        );
-        setIsLoading(false);
-        return;
-      }
-
       // Đọc role từ Firestore để redirect đúng dashboard
       const profile = await getUserProfile(userCredential.user.uid);
       const role = profile?.role ?? "student";
@@ -122,24 +111,6 @@ export function LoginForm() {
       setError(parseFirebaseError(err as AuthError));
     } finally {
       setIsLoading(false);
-    }
-  }
-
-  /** Gửi lại email xác minh */
-  async function handleResendVerification() {
-    setResendLoading(true);
-    setResendSuccess(false);
-    try {
-      // Đăng nhập tạm để lấy user object, gửi email, rồi đăng xuất
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      await sendEmailVerification(userCredential.user);
-      await signOut(auth);
-      setResendSuccess(true);
-      setError(null);
-    } catch (err) {
-      setError("Không thể gửi lại email xác minh. Vui lòng thử lại sau.");
-    } finally {
-      setResendLoading(false);
     }
   }
 
@@ -203,28 +174,6 @@ export function LoginForm() {
               </span>
               <div style={{ flex: 1 }}>
                 <span>{error}</span>
-                {error.includes("chưa được xác minh") && (
-                  <button
-                    type="button"
-                    onClick={handleResendVerification}
-                    disabled={resendLoading}
-                    style={{
-                      display: "block",
-                      marginTop: "8px",
-                      background: "none",
-                      border: "1px solid currentColor",
-                      borderRadius: "8px",
-                      padding: "6px 14px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "inherit",
-                      cursor: resendLoading ? "not-allowed" : "pointer",
-                      opacity: resendLoading ? 0.6 : 1,
-                    }}
-                  >
-                    {resendLoading ? "Đang gửi lại…" : "📧 Gửi lại email xác minh"}
-                  </button>
-                )}
               </div>
             </div>
           )}
