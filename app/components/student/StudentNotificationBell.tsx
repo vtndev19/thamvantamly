@@ -77,6 +77,10 @@ export function StudentNotificationBell() {
   }
 
   const CATEGORY_ICON: Record<string, { icon: string; color: string }> = {
+    general: { icon: "notifications", color: "#0058bd" },
+    psychology: { icon: "psychology", color: "#8b5cf6" },
+    announcement: { icon: "campaign", color: "#f43f5e" },
+    guide: { icon: "menu_book", color: "#0ea5e9" },
     news: { icon: "newspaper", color: "#0058bd" },
     event: { icon: "event", color: "#7c3aed" },
   };
