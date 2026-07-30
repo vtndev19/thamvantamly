@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   updateProfile,
+  signOut,
   type AuthError,
 } from "firebase/auth";
 import { auth } from "../../src/config/firebase";
@@ -129,11 +131,14 @@ export function DoctorRegisterForm() {
       // 5. Create Doctor Record in Firestore doctors collection
       await createDoctorRecord(userCredential.user.uid, doctorData);
 
-      // 6. Success -> Display confirmation and redirect to general login
+      // 6. Gửi email xác minh
+      await sendEmailVerification(userCredential.user);
+
+      // 7. Đăng xuất ngay (không cho vào dashboard khi chưa xác minh)
+      await signOut(auth);
+
+      // 8. Hiển thị thông báo thành công
       setSuccess(true);
-      setTimeout(() => {
-        navigate("/auth/login?registered=success");
-      }, 2000);
     } catch (err) {
       setError(parseFirebaseError(err));
     } finally {
@@ -185,13 +190,23 @@ export function DoctorRegisterForm() {
           {success ? (
             <div className="text-center py-12 flex flex-col items-center animate-fade-in">
               <span className="material-symbols-outlined text-emerald-600 mb-4" style={{ fontSize: "72px" }}>
-                check_circle
+                mark_email_read
               </span>
-              <h2 className="text-2xl font-bold text-on-surface">Đăng ký thành công!</h2>
+              <h2 className="text-2xl font-bold text-on-surface">Kiểm tra email của bạn!</h2>
               <p className="text-sm text-on-surface-variant mt-2 max-w-[450px]">
-                Hồ sơ bác sĩ chuyên môn của bạn đã được ghi nhận. Hệ thống đang chuyển hướng bạn đến trang đăng nhập chung...
+                Chúng tôi đã gửi một liên kết xác minh đến <strong>{email}</strong>.
+                Vui lòng mở email và nhấn vào liên kết để kích hoạt tài khoản chuyên gia.
               </p>
-              <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mt-6" />
+              <p className="text-xs text-on-surface-variant/70 mt-2">
+                Không nhận được email? Kiểm tra thư mục Spam/Junk.
+              </p>
+              <Link
+                to="/auth/login"
+                className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#003884] to-[#059669] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}>login</span>
+                Đi đến trang Đăng nhập
+              </Link>
             </div>
           ) : (
             <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
