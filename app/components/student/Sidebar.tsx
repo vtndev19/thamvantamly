@@ -39,10 +39,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside
         className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col justify-between border-r border-[#e8eaf0] bg-white px-6 py-8 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        } overflow-hidden`}
       >
-        {/* Top Section: Brand + Menu */}
-        <div className="flex flex-col gap-8">
+        {/* Top Section: Brand Logo (fixed) */}
+        <div className="flex-shrink-0 mb-6">
           {/* Brand Logo */}
           <div className="flex items-center gap-3 relative">
             <div className="text-primary flex items-center justify-center flex-shrink-0">
@@ -63,51 +63,51 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             {/* Mobile Close Button */}
             <button
               onClick={onClose}
-              className="absolute -right-2 top-1 p-1 text-outline hover:text-on-surface lg:hidden focus:outline-none"
+              className="absolute -right-2 top-1 p-1 text-outline hover:text-on-surface lg:hidden focus:outline-none bg-transparent border-none"
               aria-label="Đóng menu"
             >
               <Icon name="close" size={20} />
             </button>
           </div>
-
-          {/* Navigation Menu */}
-          <nav className="flex flex-col gap-4" aria-label="Menu chính">
-            {menuItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.label}
-                  to={item.path}
-                  onClick={() => {
-                    // Close sidebar on mobile after clicking
-                    onClose();
-                  }}
-                  className={`flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                    isActive
-                      ? "bg-primary text-on-primary shadow-md"
-                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
-                  }`}
-                >
-                  <Icon
-                    name={item.icon}
-                    size={20}
-                    filled={isActive}
-                    style={{ color: "currentColor" }}
-                  />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
         </div>
 
-        {/* Bottom Section: CTA + Settings/Logout */}
-        <div className="flex flex-col gap-5 pt-4 border-t border-outline-variant/30">
+        {/* Center Section: Navigation Menu (scrollable) */}
+        <nav className="flex-1 overflow-y-auto pr-1 scrollbar-thin flex flex-col gap-3" aria-label="Menu chính">
+          {menuItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.label}
+                to={item.path}
+                onClick={() => {
+                  // Close sidebar on mobile after clicking
+                  onClose();
+                }}
+                className={`flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex-shrink-0 ${
+                  isActive
+                    ? "bg-primary text-on-primary shadow-sm"
+                    : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                }`}
+              >
+                <Icon
+                  name={item.icon}
+                  size={20}
+                  filled={isActive}
+                  style={{ color: "currentColor" }}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Bottom Section: CTA + Settings/Logout (fixed) */}
+        <div className="flex-shrink-0 flex flex-col gap-4 pt-4 border-t border-outline-variant/30 mt-6">
           {/* Quick Appointment Button */}
           <Link
             to="/student/appointments/new"
             onClick={onClose}
-            className="flex items-center justify-center w-full bg-primary hover:bg-primary-container text-on-primary text-sm font-bold py-3.5 rounded-xl transition-all duration-200 shadow-sm"
+            className="flex items-center justify-center w-full bg-primary hover:bg-primary-container text-on-primary text-sm font-bold py-3 rounded-xl transition-all duration-200 shadow-sm"
           >
             Đặt lịch ngay
           </Link>
