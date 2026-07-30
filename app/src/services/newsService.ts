@@ -195,29 +195,14 @@ export class NewsService {
       const articleId = ref.id;
       let notifiedCount = 0;
 
-      // ── Gửi thông báo chung nếu checkbox isBroadcast được tick ──
+      // ── Đếm số học sinh cùng trường nhận thông báo phát thanh ──
       if (article.isBroadcast && article.schoolCode) {
         try {
           const students = await getUsersBySchoolCode(article.schoolCode, "student");
-          const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
-
-          for (const student of students) {
-            await addDoc(notifsRef, {
-              studentUid: student.uid,
-              schoolCode: article.schoolCode,
-              newsPostId: articleId,
-              title: `📢 [${CATEGORY_LABELS[article.category] || "Tin tức"}] ${article.title.trim()}`,
-              message: article.summary.trim().slice(0, 200) + (article.summary.trim().length > 200 ? "…" : ""),
-              category: article.category,
-              senderName: article.authorName,
-              isRead: false,
-              createdAt: Date.now(),
-            } satisfies Omit<StudentNotification, "id">);
-          }
           notifiedCount = students.length;
           console.log(`✅ Đã gửi thông báo đến ${students.length} học sinh trường ${article.schoolCode}`);
         } catch (err) {
-          console.warn("Lỗi gửi thông báo chung cho học sinh:", err);
+          console.warn("Lỗi đếm số học sinh cùng trường:", err);
         }
       }
 
@@ -297,48 +282,50 @@ export class NewsService {
 
 // Legacy functions removed
 
-export async function getStudentNotifications(studentUid: string): Promise<StudentNotification[]> {
-  if (!studentUid) return [];
-  const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
-  const q = query(notifsRef, where("studentUid", "==", studentUid));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((docSnap) => {
-    const data = docSnap.data();
-    return {
-      id: docSnap.id,
-      ...data,
-    } as StudentNotification;
-  }).sort((a, b) => b.createdAt - a.createdAt);
-}
-
 export function listenStudentNotifications(
   studentUid: string,
+  schoolCode: string,
   callback: (notifications: StudentNotification[]) => void
 ): Unsubscribe {
-  const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
-  const q = query(notifsRef, where("studentUid", "==", studentUid));
+  if (!schoolCode) {
+    callback([]);
+    return () => {};
+  }
+  const ref = collection(db, NEWS_ARTICLES_COLLECTION);
+  const q = query(ref, where("schoolCode", "==", schoolCode.trim()));
+  
   return onSnapshot(q, (snapshot) => {
-    const results = snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    } as StudentNotification)).sort((a, b) => b.createdAt - a.createdAt);
+    const results = snapshot.docs
+      .map((docSnap) => {
+        const data = docSnap.data();
+        const categoryLabels: Record<string, string> = {
+          general: "Chung",
+          psychology: "Tâm lý",
+          announcement: "Thông báo",
+          guide: "Cẩm nang",
+        };
+        return {
+          id: docSnap.id,
+          studentUid,
+          schoolCode,
+          newsPostId: docSnap.id,
+          title: `📢 [${categoryLabels[data.category] || "Thông báo"}] ${data.title || ""}`,
+          message: data.summary || "",
+          category: data.category || "announcement",
+          senderName: data.authorName || "Giáo viên",
+          isRead: false,
+          createdAt: data.createdAt 
+            ? (typeof data.createdAt.toDate === "function" 
+               ? data.createdAt.toDate().getTime() 
+               : (data.createdAt.seconds * 1000 || data.createdAt)) 
+            : Date.now(),
+          isBroadcast: data.isBroadcast || false,
+        };
+      })
+      .filter((n) => n.isBroadcast)
+      .sort((a, b) => b.createdAt - a.createdAt) as StudentNotification[];
     callback(results);
+  }, (err) => {
+    console.error("Lỗi listenStudentNotifications:", err);
   });
-}
-
-export async function markNotificationAsRead(notifId: string): Promise<void> {
-  if (!notifId) return;
-  const notifRef = doc(db, STUDENT_NOTIFICATIONS_COLLECTION, notifId);
-  await updateDoc(notifRef, { isRead: true });
-}
-
-export async function markAllNotificationsAsRead(studentUid: string): Promise<void> {
-  if (!studentUid) return;
-  const notifsRef = collection(db, STUDENT_NOTIFICATIONS_COLLECTION);
-  const q = query(notifsRef, where("studentUid", "==", studentUid), where("isRead", "==", false));
-  const snapshot = await getDocs(q);
-  const updates = snapshot.docs.map((docSnap) =>
-    updateDoc(doc(db, STUDENT_NOTIFICATIONS_COLLECTION, docSnap.id), { isRead: true })
-  );
-  await Promise.all(updates);
 }

@@ -1,33 +1,53 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { Icon } from "../ui/Icon";
 import { useAuth } from "../../src/contexts/AuthContext";
 import {
   listenStudentNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
   type StudentNotification,
 } from "../../src/services/newsService";
 
 /**
  * StudentNotificationBell – Component chuông thông báo realtime cho học sinh.
- * Hiển thị badge đếm số thông báo chưa đọc + dropdown danh sách thông báo.
+ * Lắng nghe trực tiếp các thông báo phát ra từ newsArticles cùng trường học.
  */
 export function StudentNotificationBell() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<StudentNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [readIds, setReadIds] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // ── Realtime listener ──────────────────────────────────────────────────────
+  // ── Load read IDs from localStorage ────────────────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
+    const saved = localStorage.getItem(`read_notifs_${user.uid}`);
+    if (saved) {
+      try {
+        setReadIds(JSON.parse(saved));
+      } catch (err) {
+        console.warn("Lỗi load read_notifs:", err);
+      }
+    } else {
+      setReadIds([]);
+    }
+  }, [user?.uid]);
 
-    const unsubscribe = listenStudentNotifications(user.uid, (notifs) => {
-      setNotifications(notifs);
-    });
+  // ── Realtime listener directly on newsArticles ─────────────────────────────
+  useEffect(() => {
+    if (!user?.uid || !user?.schoolCode) return;
+
+    const unsubscribe = listenStudentNotifications(
+      user.uid,
+      user.schoolCode,
+      (notifs) => {
+        setNotifications(notifs);
+      }
+    );
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [user?.uid, user?.schoolCode]);
 
   // ── Click outside to close ─────────────────────────────────────────────────
   useEffect(() => {
@@ -42,24 +62,43 @@ export function StudentNotificationBell() {
     }
   }, [isOpen]);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // ── Map notifications with their local read status ──────────────────────────
+  const mappedNotifications = useMemo(() => {
+    return notifications.map((n) => ({
+      ...n,
+      isRead: readIds.includes(n.id || ""),
+    }));
+  }, [notifications, readIds]);
 
-  async function handleMarkAsRead(notifId?: string) {
-    if (!notifId) return;
-    try {
-      await markNotificationAsRead(notifId);
-    } catch (err) {
-      console.error("Lỗi đánh dấu đã đọc:", err);
+  const unreadCount = useMemo(() => {
+    return mappedNotifications.filter((n) => !n.isRead).length;
+  }, [mappedNotifications]);
+
+  // ── Mark single notification as read and navigate ─────────────────────────
+  function handleMarkAsRead(notif: StudentNotification) {
+    if (!notif.id || !user?.uid) return;
+    
+    // Save to localStorage
+    if (!readIds.includes(notif.id)) {
+      const nextReadIds = [...readIds, notif.id];
+      setReadIds(nextReadIds);
+      localStorage.setItem(`read_notifs_${user.uid}`, JSON.stringify(nextReadIds));
+    }
+    setIsOpen(false);
+
+    // Navigate to student news details
+    if (notif.newsPostId) {
+      navigate(`/student/news?id=${notif.newsPostId}`);
     }
   }
 
-  async function handleMarkAllRead() {
+  // ── Mark all as read ───────────────────────────────────────────────────────
+  function handleMarkAllRead() {
     if (!user?.uid) return;
-    try {
-      await markAllNotificationsAsRead(user.uid);
-    } catch (err) {
-      console.error("Lỗi đánh dấu tất cả đã đọc:", err);
-    }
+    const allIds = notifications.map((n) => n.id || "").filter(Boolean);
+    const nextReadIds = Array.from(new Set([...readIds, ...allIds]));
+    setReadIds(nextReadIds);
+    localStorage.setItem(`read_notifs_${user.uid}`, JSON.stringify(nextReadIds));
   }
 
   function formatTime(timestamp: number): string {
@@ -90,7 +129,7 @@ export function StudentNotificationBell() {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-colors cursor-pointer"
+        className="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-colors cursor-pointer border-none bg-transparent"
         aria-label="Thông báo"
       >
         <Icon name="notifications" size={22} />
@@ -123,7 +162,7 @@ export function StudentNotificationBell() {
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
-                className="text-[11px] font-semibold text-primary hover:text-primary/80 cursor-pointer bg-transparent border-none transition-colors"
+                className="text-[11px] font-semibold text-[#0058bd] hover:text-[#0058bd]/80 cursor-pointer bg-transparent border-none transition-colors"
               >
                 Đánh dấu tất cả đã đọc
               </button>
@@ -132,7 +171,7 @@ export function StudentNotificationBell() {
 
           {/* Notification List */}
           <div className="overflow-y-auto max-h-[360px]">
-            {notifications.length === 0 ? (
+            {mappedNotifications.length === 0 ? (
               <div className="p-8 text-center text-xs text-on-surface-variant space-y-2">
                 <Icon name="notifications_none" size={32} style={{ color: "#a1a1aa", margin: "0 auto" }} />
                 <p className="font-semibold text-sm text-on-surface">Chưa có thông báo</p>
@@ -142,12 +181,12 @@ export function StudentNotificationBell() {
               </div>
             ) : (
               <div className="divide-y divide-outline-variant/15">
-                {notifications.map((notif) => {
+                {mappedNotifications.map((notif) => {
                   const catInfo = CATEGORY_ICON[notif.category] || CATEGORY_ICON.news;
                   return (
                     <div
                       key={notif.id}
-                      onClick={() => handleMarkAsRead(notif.id)}
+                      onClick={() => handleMarkAsRead(notif)}
                       className={`flex items-start gap-3 px-4 py-3.5 transition-colors cursor-pointer ${
                         notif.isRead
                           ? "bg-white hover:bg-surface-container-low"
