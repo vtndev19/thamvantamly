@@ -2,11 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   createUserWithEmailAndPassword,
-  sendEmailVerification,
   updateProfile,
   signInWithPopup,
   GoogleAuthProvider,
-  signOut,
   type AuthError,
 } from "firebase/auth";
 import { auth } from "../../src/config/firebase";
@@ -159,14 +157,12 @@ export function RegisterForm() {
         schoolCode: schoolCode.trim(),
       });
 
-      // 4. Gửi email xác minh
-      await sendEmailVerification(userCredential.user);
-
-      // 5. Đăng xuất ngay (không cho vào dashboard khi chưa xác minh)
-      await signOut(auth);
-
-      // 6. Hiển thị thông báo thành công
+      // 4. Thành công → hiển thị thông báo rồi redirect đến dashboard
       setSuccess(true);
+
+      setTimeout(() => {
+        navigate(ROLE_CONFIG[role].dashboardPath);
+      }, 1800);
     } catch (err) {
       setError(parseFirebaseError(err as AuthError));
     } finally {
@@ -283,29 +279,13 @@ export function RegisterForm() {
                 className="material-symbols-outlined register-success-icon"
                 aria-hidden="true"
               >
-                mark_email_read
+                check_circle
               </span>
-              <h2 className="register-success-title">Kiểm tra email của bạn!</h2>
+              <h2 className="register-success-title">Đăng ký thành công!</h2>
               <p className="register-success-desc">
-                Chúng tôi đã gửi một liên kết xác minh đến <strong>{email}</strong>.
-                Vui lòng mở email và nhấn vào liên kết để kích hoạt tài khoản.
+                Tài khoản của bạn đã được tạo. Đang chuyển hướng đến trang đăng
+                nhập…
               </p>
-              <p className="register-success-desc" style={{ marginTop: "8px", fontSize: "12px", color: "#727785" }}>
-                Không nhận được email? Kiểm tra thư mục Spam/Junk.
-              </p>
-              <Link
-                to="/auth/login"
-                className="register-submit-btn"
-                style={{ marginTop: "20px", display: "inline-flex", textDecoration: "none", maxWidth: "280px" }}
-              >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
-                >
-                  login
-                </span>
-                Đi đến trang Đăng nhập
-              </Link>
             </div>
           ) : (
             <>

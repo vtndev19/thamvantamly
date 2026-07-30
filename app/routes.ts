@@ -21,7 +21,6 @@ export default [
   route("teacher/students", "routes/teacher/students.tsx"),
   route("teacher/support", "routes/teacher/support.tsx"),
   route("teacher/qna", "routes/teacher/qna.tsx"),
-  route("teacher/news", "routes/teacher/news.tsx"),
   route("teacher/profile", "routes/teacher/profile.tsx"),
   route("teacher/news", "routes/teacher/news.tsx"),
 
