@@ -141,6 +141,51 @@ export async function seedAdminAccount(): Promise<{ email: string; pass: string 
 }
 
 /**
+ * Khởi tạo tự động các tài khoản thử nghiệm của các Role:
+ * 1. Admin: admin@safeschool.vn / Admin@123456
+ * 2. Giáo viên: teacher@safeschool.vn / Teacher@123456
+ * 3. Học sinh: student@safeschool.vn / Student@123456
+ * 4. Bác sĩ: doctor@safeschool.vn / Doctor@123456
+ */
+export async function seedTestAccounts(): Promise<void> {
+  const accounts = [
+    { email: "admin@safeschool.vn", pass: "Admin@123456", role: "admin" as UserRole, name: "Quản trị viên Hệ thống" },
+    { email: "teacher@safeschool.vn", pass: "Teacher@123456", role: "teacher" as UserRole, name: "Cô Nguyễn Thị Giáo Viên" },
+    { email: "student@safeschool.vn", pass: "Student@123456", role: "student" as UserRole, name: "Em Nguyễn Văn Học Sinh" },
+    { email: "doctor@safeschool.vn", pass: "Doctor@123456", role: "doctor" as UserRole, name: "Bác Sĩ Nguyễn Văn Chuyên Gia" },
+  ];
+
+  for (const acc of accounts) {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, acc.email, acc.pass);
+      await updateProfile(userCredential.user, {
+        displayName: acc.name,
+      });
+      await createUserProfile(userCredential.user.uid, {
+        email: acc.email,
+        displayName: acc.name,
+        role: acc.role,
+        schoolCode: "THPT001",
+      });
+      if (acc.role === "doctor") {
+        await createDoctorRecord(userCredential.user.uid, {
+          email: acc.email,
+          displayName: acc.name,
+          role: acc.role,
+          specialization: "Tâm lý học học đường",
+          hospital: "Bệnh viện SafeSchool",
+        });
+      }
+      console.log(`Đã khởi tạo tài khoản ${acc.email} thành công.`);
+    } catch (err: any) {
+      if (err?.code !== "auth/email-already-in-use") {
+        console.warn(`Lỗi khởi tạo tài khoản ${acc.email}:`, err);
+      }
+    }
+  }
+}
+
+/**
  * Tạo document bác sĩ mới trong collection `doctors`.
  * Document path: doctors/{uid}
  */

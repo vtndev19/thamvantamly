@@ -82,6 +82,7 @@ export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
     { label: "Lớp học", path: "/teacher/classes", icon: "class" },
     { label: "Học sinh", path: "/teacher/students", icon: "groups" },
     { label: "Hỏi đáp Q&A", path: "/teacher/qna", icon: "help" },
+    { label: "Tin tức & Sự kiện", path: "/teacher/news", icon: "newspaper" },
     { label: "Hỗ trợ tâm lý", path: "/teacher/support", icon: "psychology" },
     { label: "Tin tức & Sự kiện", path: "/teacher/news", icon: "newspaper" },
   ];

@@ -12,8 +12,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const menuItems = [
     { label: "Tổng quan", path: "/student/dashboard", icon: "space_dashboard" },
     { label: "Chuyên gia", path: "/student/experts", icon: "supervisor_account" },
+    { label: "Nhắn tin", path: "/student/chat", icon: "chat" },
     { label: "Lịch hẹn", path: "/student/appointments", icon: "calendar_today" },
     { label: "Hỏi đáp", path: "/student/qna", icon: "help" },
+    { label: "Tin tức", path: "/student/news", icon: "newspaper" },
     { label: "Kiểm tra", path: "/student/tests", icon: "fact_check" },
     { label: "Hỗ trợ khẩn cấp", path: "/student/support", icon: "emergency" },
     { label: "Báo cáo của tôi", path: "/student/reports", icon: "assignment" },

@@ -50,7 +50,8 @@ export function DoctorChatWidget() {
   const shouldHideUI =
     !user ||
     user.role !== "student" ||
-    !location.pathname.startsWith("/student");
+    !location.pathname.startsWith("/student") ||
+    location.pathname === "/student/chat";
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
@@ -320,6 +321,27 @@ export function DoctorChatWidget() {
             flexShrink: 0,
           }}
         >
+          {activeDoctor && !showChatList && (
+            <button
+              onClick={() => setShowChatList(true)}
+              style={{
+                background: "rgba(255,255,255,0.15)",
+                border: "none",
+                color: "white",
+                cursor: "pointer",
+                padding: "6px",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: "2px",
+              }}
+              title="Quay lại danh sách"
+            >
+              <Icon name="arrow_back" size={18} />
+            </button>
+          )}
+
           {/* Doctor avatar / List icon */}
           <div style={{ position: "relative", flexShrink: 0 }}>
             {activeDoctor && !showChatList ? (

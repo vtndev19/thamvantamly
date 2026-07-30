@@ -3,6 +3,7 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyC-ZjZO1Bt5aX5_mwgLxadCvoVOg3LyiE4",
@@ -25,6 +26,9 @@ export const db = getFirestore(app);
 
 // Realtime Database instance dùng chung toàn app
 export const database = getDatabase(app);
+
+// Storage instance dùng chung toàn app
+export const storage = getStorage(app);
 
 let analytics = null;
 

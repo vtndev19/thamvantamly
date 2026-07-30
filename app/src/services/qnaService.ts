@@ -35,6 +35,7 @@ export interface QuestionRecord {
   senderRole: string;
   createdAt: number;
   commentCount: number;
+  imageUrl?: string;
 }
 
 /** Dữ liệu một bình luận trên Firestore */
@@ -59,6 +60,7 @@ export interface SubmitQuestionPayload {
     displayName: string | null;
     role: string;
   };
+  imageUrl?: string | null;
 }
 
 const QNA_COLLECTION = "qna_posts";
@@ -76,6 +78,7 @@ export async function submitQuestion({
   category,
   isAnonymous,
   sender,
+  imageUrl,
 }: SubmitQuestionPayload): Promise<string> {
   const qnaRef = collection(db, QNA_COLLECTION);
   const newDocRef = doc(qnaRef);
@@ -91,6 +94,7 @@ export async function submitQuestion({
     senderRole: isAnonymous ? "student" : sender.role,
     createdAt: Date.now(),
     commentCount: 0,
+    imageUrl: imageUrl || undefined,
   };
 
   await setDoc(newDocRef, postData);
