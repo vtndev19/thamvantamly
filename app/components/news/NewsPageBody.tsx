@@ -231,7 +231,7 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
 
       const finalUrls = urls.length > 0 ? urls : [imageUrl || PRESET_IMAGES[0].url];
 
-      await NewsService.createArticle({
+      const result = await NewsService.createArticle({
         title: title.trim(),
         summary: summary.trim(),
         content: content.trim(),
@@ -255,7 +255,12 @@ export function NewsPageBody({ role }: NewsPageBodyProps) {
       setImageFiles([]);
       setImagePreviews([]);
       setIsBroadcast(false);
-      alert("Đăng tin tức thành công! 🎉");
+
+      if (result.notifiedCount > 0) {
+        alert(`Đăng tin tức thành công và đã gửi thông báo đến ${result.notifiedCount} học sinh cùng trường! 📢🎉`);
+      } else {
+        alert("Đăng tin tức thành công! 🎉");
+      }
     } catch (err) {
       console.error("Lỗi đăng tin tức:", err);
       alert("Đã xảy ra lỗi khi tạo bài viết.");

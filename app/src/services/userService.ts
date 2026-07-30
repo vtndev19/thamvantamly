@@ -60,7 +60,10 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 
   if (!snapshot.exists()) return null;
 
-  return snapshot.data() as UserProfile;
+  return {
+    uid: snapshot.id,
+    ...snapshot.data()
+  } as UserProfile;
 }
 
 /**
@@ -82,7 +85,10 @@ export async function getUsersBySchoolCode(
     : query(usersRef, where("schoolCode", "==", schoolCode.trim()));
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => doc.data() as UserProfile);
+  return snapshot.docs.map((doc) => ({
+    uid: doc.id,
+    ...doc.data()
+  } as UserProfile));
 }
 
 /**

@@ -181,7 +181,7 @@ export class NewsService {
   // ── 2. Create an article ──
   static async createArticle(
     article: Omit<Article, "id" | "createdAt" | "updatedAt" | "likes" | "views" | "likedBy">
-  ): Promise<string> {
+  ): Promise<{ id: string; notifiedCount: number }> {
     try {
       const docData = {
         ...article,
@@ -193,6 +193,7 @@ export class NewsService {
       };
       const ref = await addDoc(collection(db, NEWS_ARTICLES_COLLECTION), docData);
       const articleId = ref.id;
+      let notifiedCount = 0;
 
       // ── Gửi thông báo chung nếu checkbox isBroadcast được tick ──
       if (article.isBroadcast && article.schoolCode) {
@@ -213,13 +214,14 @@ export class NewsService {
               createdAt: Date.now(),
             } satisfies Omit<StudentNotification, "id">);
           }
+          notifiedCount = students.length;
           console.log(`✅ Đã gửi thông báo đến ${students.length} học sinh trường ${article.schoolCode}`);
         } catch (err) {
           console.warn("Lỗi gửi thông báo chung cho học sinh:", err);
         }
       }
 
-      return articleId;
+      return { id: articleId, notifiedCount };
     } catch (err) {
       console.error("[NewsService] createArticle error:", err);
       throw err;
