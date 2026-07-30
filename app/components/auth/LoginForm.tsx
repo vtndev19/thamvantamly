@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
+  sendEmailVerification,
+  signOut,
   GoogleAuthProvider,
   type AuthError,
 } from "firebase/auth";
@@ -51,6 +53,8 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
 
 
   // ── Submit handler ─────────────────────────────────────────────────────────
@@ -61,6 +65,17 @@ export function LoginForm() {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+      // Kiểm tra xác minh email (chỉ áp dụng cho đăng nhập bằng email/password)
+      if (!userCredential.user.emailVerified) {
+        await signOut(auth);
+        setError(
+          "Email của bạn chưa được xác minh. Vui lòng kiểm tra hộp thư và nhấn vào liên kết xác minh."
+        );
+        setIsLoading(false);
+        return;
+      }
+
       // Đọc role từ Firestore để redirect đúng dashboard
       const profile = await getUserProfile(userCredential.user.uid);
       const role = profile?.role ?? "student";
@@ -104,6 +119,24 @@ export function LoginForm() {
       setError(parseFirebaseError(err as AuthError));
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  /** Gửi lại email xác minh */
+  async function handleResendVerification() {
+    setResendLoading(true);
+    setResendSuccess(false);
+    try {
+      // Đăng nhập tạm để lấy user object, gửi email, rồi đăng xuất
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(userCredential.user);
+      await signOut(auth);
+      setResendSuccess(true);
+      setError(null);
+    } catch (err) {
+      setError("Không thể gửi lại email xác minh. Vui lòng thử lại sau.");
+    } finally {
+      setResendLoading(false);
     }
   }
 
@@ -165,7 +198,55 @@ export function LoginForm() {
               <span className="material-symbols-outlined login-error-icon">
                 error
               </span>
-              <span>{error}</span>
+              <div style={{ flex: 1 }}>
+                <span>{error}</span>
+                {error.includes("chưa được xác minh") && (
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendLoading}
+                    style={{
+                      display: "block",
+                      marginTop: "8px",
+                      background: "none",
+                      border: "1px solid currentColor",
+                      borderRadius: "8px",
+                      padding: "6px 14px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "inherit",
+                      cursor: resendLoading ? "not-allowed" : "pointer",
+                      opacity: resendLoading ? 0.6 : 1,
+                    }}
+                  >
+                    {resendLoading ? "Đang gửi lại…" : "📧 Gửi lại email xác minh"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Resend success notification */}
+          {resendSuccess && (
+            <div
+              role="status"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "12px 16px",
+                borderRadius: "12px",
+                backgroundColor: "#ecfdf5",
+                border: "1px solid #a7f3d0",
+                color: "#065f46",
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: "18px", color: "#059669" }}>
+                check_circle
+              </span>
+              Đã gửi lại email xác minh! Vui lòng kiểm tra hộp thư.
             </div>
           )}
 

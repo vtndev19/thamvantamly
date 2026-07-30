@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { Icon } from "../ui/Icon";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -16,10 +16,12 @@ const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1494790108377-be9c29b2
 
 export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
   const location = useLocation();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState<{ displayName?: string; photoURL?: string } | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -37,6 +39,20 @@ export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
     }
     loadTeacherProfile();
   }, [user]);
+
+  const handleLogout = async () => {
+    if (!confirm("Bạn có chắc chắn muốn đăng xuất?")) return;
+    try {
+      setLoggingOut(true);
+      await logout();
+      navigate("/auth/login");
+    } catch (err) {
+      console.error("Lỗi đăng xuất:", err);
+      alert("Đăng xuất thất bại. Vui lòng thử lại.");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,6 +83,7 @@ export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
     { label: "Học sinh", path: "/teacher/students", icon: "groups" },
     { label: "Hỏi đáp Q&A", path: "/teacher/qna", icon: "help" },
     { label: "Hỗ trợ tâm lý", path: "/teacher/support", icon: "psychology" },
+    { label: "Tin tức & Sự kiện", path: "/teacher/news", icon: "newspaper" },
   ];
 
   return (
@@ -188,6 +205,16 @@ export function TeacherSidebar({ isOpen, onClose }: TeacherSidebarProps) {
               <p className="text-[10px] text-on-surface-variant truncate">Giáo viên</p>
             </div>
           </div>
+
+          {/* Nút đăng xuất */}
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-[13px] font-semibold text-red-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Icon name="logout" size={20} style={{ color: "currentColor" }} />
+            {loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
+          </button>
         </div>
       </aside>
     </>
