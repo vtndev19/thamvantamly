@@ -331,9 +331,9 @@ export function LoginForm() {
                 />
                 <span className="login-remember-label">Ghi nhớ đăng nhập</span>
               </label>
-              <a href="#" className="login-forgot-link">
+              <Link to="/auth/forgot-password" className="login-forgot-link">
                 Quên mật khẩu?
-              </a>
+              </Link>
             </div>
 
             {/* Submit */}

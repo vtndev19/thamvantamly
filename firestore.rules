@@ -4,8 +4,8 @@ service cloud.firestore {
 
     // 1. Quy tắc cho User Profile (Bảo mật tài khoản)
     match /users/{userId} {
-      // Cho phép đọc thông tin user đã đăng nhập (để lọc danh sách giáo viên/học sinh cùng trường)
-      allow read: if request.auth != null;
+      // Cho phép đọc thông tin user: đã đăng nhập hoặc để kiểm tra email khi forgot password
+      allow read: if request.auth != null || true; // Cần cho forgot-password flow
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null &&
         (request.auth.uid == userId ||
@@ -106,6 +106,13 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && 
         (resource.data.authorId == request.auth.uid ||
          request.resource.data.authorRole == 'admin');
+    }
+
+    // 13. Quy tắc cho OTP Requests (dùng cho tính năng Quên Mật Khẩu)
+    // OTP có TTL 5 phút, được tạo/đọc/xóa bởi người dùng chưa đăng nhập
+    match /otpRequests/{docId} {
+      // Cho phép tạo, đọc, cập nhật và xóa OTP mà không cần đăng nhập
+      allow read, write: if true;
     }
 
   }

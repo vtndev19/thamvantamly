@@ -253,7 +253,6 @@ export default function DoctorAppointmentsPage() {
               <div className="flex flex-col items-center justify-center py-20 text-center gap-4 bg-white border border-[#e8eaf0] rounded-3xl p-8 shadow-xs">
                 <Icon name="event_busy" size={56} style={{ color: "#cbd5e1" }} />
                 <p className="text-base font-bold text-gray-600">Không có lịch hẹn nào</p>
-                <p className="text-sm text-gray-400 max-w-sm">Hiện không ghi nhận lịch hẹn nào trong bộ lọc này.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
